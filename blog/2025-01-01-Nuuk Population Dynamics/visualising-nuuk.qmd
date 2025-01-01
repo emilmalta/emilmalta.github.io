@@ -1,16 +1,16 @@
 ---
 title: "Population Dynamics of Nuuk"
 description: "Why does Nuuk have so many more men than women? Exploring how immigration shapes the population across age, gender and neighborhoods."
-author: "Emil Malta"
-date: "2025-01-01"
-format: 
-  html:
-    self-contained: true
-toc: true
-image: "cover.jpg"
-categories:
-  - Nuuk
-  - Visualisation
+bluesky-comments:
+  mute-patterns:
+    - "📌"
+    - "🔥"
+    - "/\\bspam\\b/i"  # regex pattern
+  mute-users:
+    - "did:plc:1234abcd"
+  filter-empty-replies: true
+  n-show-init: 3
+  n-show-more: 2
 ---
 
 ```{r}
@@ -329,3 +329,5 @@ nuk_latest %>%
 -   Youngest part of town is Qinngorput, with young parents and children being a reason why.
 
 I hope this was helpful. Small projects like this was a big part of how I got comfortable working with R and other data science tools.
+
+{{< bluesky-comments at://did:plc:pk6346ydqvifmlgimbez4dsx/app.bsky.feed.post/3lep77zcm322e >}}
