@@ -1,11 +1,12 @@
 ---
 title: "Population Dynamics of Nuuk"
+author: "Emil Malta"
+date: "2025-01-01"
+toc: true
 description: "Why does Nuuk have so many more men than women? Exploring how immigration shapes the population across age, gender and neighborhoods."
 bluesky-comments:
   mute-patterns:
     - "📌"
-    - "🔥"
-    - "/\\bspam\\b/i"  # regex pattern
   mute-users:
     - "did:plc:1234abcd"
   filter-empty-replies: true
