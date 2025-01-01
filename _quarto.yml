@@ -1,0 +1,33 @@
+project:
+  type: website
+  output-dir: docs
+
+website:
+  title: "Emil Nikki Malta"
+  open-graph: true # https://quarto.org/docs/websites/website-tools.html#open-graph
+  page-footer: "Made with ❤️ and Quarto"
+  navbar:
+    left:
+      - text: "Home"
+        href: index.qmd
+      - text: "Blog"
+        href: blog.qmd
+      - text: "CV"
+        href: cv/cv.html
+    right:
+      - text: "{{< iconify bi:envelope title='E-mail' >}}"
+        href: mailto:emilmalta89@gmail.com
+      - text: "{{< iconify mdi:github title = 'Github'>}}"
+        href: https://github.com/emilmalta
+        rel: me
+        target: _blank
+      - text: "{{< iconify logos:bluesky title = 'Bluesky'>}}"
+        href: https://bsky.app/profile/emilmalta.bsky.social
+        rel: me
+        target: _blank
+      
+ 
+format:
+  html:
+    theme: [cosmo, styles.scss]
+

@@ -1,0 +1,49 @@
+---
+title: "Emil Nikki Malta"
+subtitle: "Data consultant | MSc Bioinformatics"
+image: profile.png
+about: # https://quarto.org/docs/websites/website-about.html
+  template: trestles
+  image-shape: round
+  links:
+    - icon: github
+      text: Github
+      href: https://github.com/emilmalta
+    - icon: linkedin
+      text: LinkedIn
+      href: https://linkedin.com/in/emilmalta
+---
+
+## Hi,
+
+I'm Emil. I work with data (mostly healthcare and demographics), turning tangled data into tools and visuals people can actually use.
+
+I like creative problem-solving, data storytelling, and learning new things. Outside of work, I'm either chasing my kids, or exploring new ideas and tools.
+
+## Experience
+
+**Data Consultant**\
+*Region Midtjylland (Aarhus, 2021 - Present)*
+
+-   I develop high-quality analysis tools and pipelines for healthcare procurement, contract management, and logistics.
+
+-   Collaboration with interdisciplinary teams. Focus on environmental impact of procurement and logistics.
+
+**Statistics Officer (AC)**\
+*Statistics Greenland (Nuuk, 2018 - 2021)*
+
+-   Statistical programming and maintenance of official national registers.
+
+## Education
+
+**M.Sc. Bioinformatics**\
+*Aarhus University (2016 - 2018)*
+
+-   Statistical modeling and data analysis.
+
+-   Focus on application in forensics - e.g. statistical mass spectrometry analysis of fingerprint residue, using regression and classification trees.
+
+**B.Sc. Molecular Biology**\
+*Aarhus University (2013 - 2016)*
+
+-   Minor in Bioinformatics. Focus on genetic epidemiology.
