@@ -1,0 +1,118 @@
+---
+title: "Wright-Fisher simulations in R"
+author: "Emil Malta"
+date: "2025-01-03"
+toc: true
+description: "This post covers a few ways to implement genetic drift simulations in R."
+bluesky-comments:
+  mute-patterns:
+    - "📌"
+  mute-users:
+    - "did:plc:1234abcd"
+  filter-empty-replies: true
+  n-show-init: 3
+  n-show-more: 2
+draft: true
+---
+
+## Genetic drift
+
+## tl;dr
+
+## Naive approach
+
+```{r}
+wf_sim <- function(p = .5, n = 50, t = 50) {
+  freqs <- c(p)
+  for(i in 2:t) {
+    freqs <- c(freqs, rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n))
+  }
+  freqs
+}
+
+plot(
+  wf_sim(), type = "l", ylim = c(0,1), 
+  main = "Wright-Fisher simulation of genetic drift"
+)
+```
+
+```{r}
+plot(
+  wf_sim(), type = "l", ylim = c(0,1), 
+  main = "Wright-Fisher simulation of genetic drift"
+)
+
+for(i in 1:100) points(wf_sim(), type = "l")
+
+```
+
+## Preallocate your vectors
+
+
+```{r}
+wf_sim_vectorized <- function(p = .5, n = 50, t = 50) {
+  freqs <- vector(mode = "numeric", length = t)
+  freqs[1] <- p
+  for(i in 2:t) {
+    freqs[i] <- rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n)
+  }
+  freqs
+}
+```
+{{< lipsum 1 >}}
+
+```{r}
+bench::mark(
+  wf_sim(t = 5000), 
+  wf_sim_vectorized(t = 5000), 
+  check = FALSE
+)
+```
+
+## For loops are fine
+
+```{r}
+wf_sim_tidy <- function(p = .5, n = 50, t = 50) {
+  purrr::accumulate(
+    .x = vector(mode = "numeric", length = t),
+    .f = ~ rbinom(1, 2 * n, .x)/(2 * n), 
+    .init = p
+  )
+}
+```
+
+
+```{r}
+bench::mark(
+  wf_sim(t = 5000),
+  wf_sim_vectorized(t = 5000), 
+  wf_sim_tidy(t = 5000),
+  check = FALSE
+)
+```
+
+
+```{r}
+library(tidyverse)
+crossing(sim = 1:100, p_init = c(.1, .5, .9), n = c(5, 50, 500)) %>% 
+  group_by(sim, p_init, n) %>% 
+  reframe(
+    p = wf_sim_vectorized(p = p_init, n = n),
+    t = seq_along(p)
+  ) -> df
+
+df %>% 
+  ggplot(aes(x = t, y = p, group = sim)) +
+  geom_line(alpha = .2) +
+  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
+  scale_y_continuous(labels = scales::percent) 
+```
+```{r}
+df %>% 
+  filter(t == max(t)) %>% 
+  ggplot(aes(y = p)) +
+  geom_histogram(bins = 20, color = "white") +
+  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
+  scale_y_continuous(labels = scales::percent) 
+```
+

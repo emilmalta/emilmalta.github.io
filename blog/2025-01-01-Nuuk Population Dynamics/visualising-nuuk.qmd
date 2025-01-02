@@ -278,7 +278,7 @@ While this plot can be a bit overwhelming, I like how it displays every variable
 
 People born outside Greenland explain many of the dynamics in town, especially the men aged 40 and over. Qinngorput is a definite suburb, with many kids compared to the other districts.
 
-One final thing I wan to change is the order in which the information is shown. Right now, all of the categorical variables are sorted alphabetically, which is pretty much arbitrary. I think a better way of displaying the data, is to sort them by the number of observations in each group. This can be done by using the `fct_infreq` function of `forcats`:
+One final thing I want to change is the order in which the information is shown. Right now, all of the categorical variables are sorted alphabetically, which is pretty much arbitrary. I think a better way of displaying the data, is to sort them by the number of observations in each group. This can be done by using the `fct_infreq` function of `forcats`:
 
 ```{r}
 #| fig-align: center
