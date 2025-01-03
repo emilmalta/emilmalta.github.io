@@ -107,12 +107,187 @@ df %>%
   facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
   scale_y_continuous(labels = scales::percent) 
 ```
+
+```{r}
+wf_sim_mutation <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0){
+  freqs <- vector(mode = "numeric", length = t)
+  freqs[1] <- p
+  
+  for(i in 2:t) {
+    p_mut <- (1 - mut_from) * freqs[i - 1] + mut_to * (1 - freqs[i - 1])
+    freqs[i] <- rbinom(1, 2 * n, p_mut) / (2 * n)
+  }
+  freqs
+}
+```
+
+```{r}
+crossing(sim = 1:100, p_init = c(.01, .5, .99), n = c(50, 500, 5000)) %>% 
+  group_by(sim, p_init, n) %>% 
+  reframe(
+    p = wf_sim_mutation(p = p_init, n = n, mut_to = .06, mut_from = .06),
+    t = seq_along(p)
+  ) -> df
+
+df %>% 
+  ggplot(aes(x = t, y = p, group = sim)) +
+  geom_line(alpha = .2) +
+  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
+  scale_y_continuous(labels = scales::percent)
+```
+
 ```{r}
 df %>% 
   filter(t == max(t)) %>% 
   ggplot(aes(y = p)) +
-  geom_histogram(bins = 20, color = "white") +
+  geom_histogram(color = "white") +
   facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
   scale_y_continuous(labels = scales::percent) 
 ```
 
+
+---
+title: "Wright-Fisher simulations in R"
+author: "Emil Malta"
+date: "2025-01-03"
+toc: true
+description: "This post covers a few ways to implement genetic drift simulations in R."
+bluesky-comments:
+  mute-patterns:
+    - "📌"
+  mute-users:
+    - "did:plc:1234abcd"
+  filter-empty-replies: true
+  n-show-init: 3
+  n-show-more: 2
+draft: true
+---
+
+## Genetic drift
+
+## tl;dr
+
+## Naive approach
+
+```{r}
+wf_sim <- function(p = .5, n = 50, t = 50) {
+  freqs <- c(p)
+  for(i in 2:t) {
+    freqs <- c(freqs, rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n))
+  }
+  freqs
+}
+
+plot(
+  wf_sim(), type = "l", ylim = c(0,1), 
+  main = "Wright-Fisher simulation of genetic drift"
+)
+```
+
+```{r}
+plot(
+  wf_sim(), type = "l", ylim = c(0,1), 
+  main = "Wright-Fisher simulation of genetic drift"
+)
+
+for(i in 1:100) points(wf_sim(), type = "l")
+
+```
+
+## Preallocate your vectors
+
+
+```{r}
+wf_sim_vectorized <- function(p = .5, n = 50, t = 50) {
+  freqs <- vector(mode = "numeric", length = t)
+  freqs[1] <- p
+  for(i in 2:t) {
+    freqs[i] <- rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n)
+  }
+  freqs
+}
+```
+{{< lipsum 1 >}}
+
+```{r}
+bench::mark(
+  wf_sim(t = 5000), 
+  wf_sim_vectorized(t = 5000), 
+  check = FALSE
+)
+```
+
+## For loops are fine
+
+```{r}
+wf_sim_tidy <- function(p = .5, n = 50, t = 50) {
+  purrr::accumulate(
+    .x = vector(mode = "numeric", length = t),
+    .f = ~ rbinom(1, 2 * n, .x)/(2 * n), 
+    .init = p
+  )
+}
+```
+
+
+```{r}
+bench::mark(
+  wf_sim(t = 5000),
+  wf_sim_vectorized(t = 5000), 
+  wf_sim_tidy(t = 5000),
+  check = FALSE
+)
+```
+
+
+```{r}
+library(tidyverse)
+crossing(sim = 1:100, p_init = c(.1, .5, .9), n = c(5, 50, 500)) %>% 
+  group_by(sim, p_init, n) %>% 
+  reframe(
+    p = wf_sim_vectorized(p = p_init, n = n),
+    t = seq_along(p)
+  ) -> df
+
+df %>% 
+  ggplot(aes(x = t, y = p, group = sim)) +
+  geom_line(alpha = .2) +
+  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
+  scale_y_continuous(labels = scales::percent) 
+```
+
+```{r}
+wf_sim_selmut <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0, 
+                            fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+
+  
+  freqs <- vector(mode = "numeric", length = t)
+  freqs[1] <- p
+  
+  
+  for(i in 2:t) {
+    fit_avg = freqs[i - 1] ^ 2 * fit_AA + 
+      2 * freqs[i - 1] * (1 - freqs[i - 1]) * fit_Aa + 
+      (1 - freqs[i - 1]) ^ 2 * fit_aa
+    
+    p_sel = (freqs[i - 1] * (freqs[i - 1] * fit_AA + (1 - freqs[i - 1]) * fit_Aa)) / fit_avg
+    p_mut <- (1 - mut_from) * p_sel + (1 - p_sel) * mut_to
+    
+    freqs[i] <- rbinom(1, 2 * n, p_mut) / (2 * n)
+  }
+  freqs
+}
+
+crossing(sim = 1:100, p_init = c(.1/250, .5, .9), n = c(5, 50, 500)) %>% 
+  group_by(sim, p_init, n) %>% 
+  reframe(
+    p = wf_sim_selmut(p = p_init, n = n, fit_Aa = .5, fit_aa = .25),
+    t = seq_along(p)
+  ) -> df
+
+df %>% 
+  ggplot(aes(x = t, y = p, group = sim)) +
+  geom_line(alpha = .2) +
+  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
+  scale_y_continuous(labels = scales::percent) 
+```
