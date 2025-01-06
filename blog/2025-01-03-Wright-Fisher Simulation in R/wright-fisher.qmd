@@ -1,9 +1,13 @@
 ---
 title: "Wright-Fisher simulations in R"
 author: "Emil Malta"
-date: "2025-01-03"
+date: "2025-01-06"
 toc: true
 description: "This post covers a few ways to implement genetic drift simulations in R."
+filters:
+  - line-highlight
+execute:
+  warning: false
 bluesky-comments:
   mute-patterns:
     - "📌"
@@ -15,11 +19,21 @@ bluesky-comments:
 draft: true
 ---
 
-## Genetic drift
+## The Wright Fisher model
 
-## tl;dr
+Something something. This process is called genetic drift, and explains much of the reduction of genetic variance in a population over time, especially if the population size is small. A common model used to simulate this is called the Wright-Fisher model, which assumes that:
 
-## Naive approach
+- The size of the population is constant over time.
+
+- The generations don't overlap.
+
+- The change in allele frequencies is a stochastic process.
+
+Allele frequency of each generation comes from sampling a binomial distribution based on frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).
+
+## Visualising drift
+
+The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I'll get into why a bit later in the post. 
 
 ```{r}
 wf_sim <- function(p = .5, n = 50, t = 50) {
@@ -29,25 +43,93 @@ wf_sim <- function(p = .5, n = 50, t = 50) {
   }
   freqs
 }
-
-plot(
-  wf_sim(), type = "l", ylim = c(0,1), 
-  main = "Wright-Fisher simulation of genetic drift"
-)
 ```
+
+Say you have a population of 50 animals, and you're able to measure the frequency of an allele, once every generation. The frequency turns out to be 50% at the first generation, but for every generation that changes a little bit:
 
 ```{r}
-plot(
-  wf_sim(), type = "l", ylim = c(0,1), 
-  main = "Wright-Fisher simulation of genetic drift"
-)
+library(tidyverse)
 
-for(i in 1:100) points(wf_sim(), type = "l")
-
+enframe(wf_sim(), name = "t", value = "p") %>% 
+  ggplot(aes(x = t, y = p)) +
+  geom_line()
 ```
 
-## Preallocate your vectors
+Now imagine 100 simulations. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulation will even have fixed or lost the allele, purely due to chance.
 
+Let's try and illustrate it. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use `patchwork` to stitch my plots together:
+
+```{r}
+library(patchwork)
+
+draw_sims <- function(sims = 100, ...) {
+  
+  dots <- list(...)
+  
+  df <- tibble(sim = seq_along(1:sims)) %>% 
+    group_by(sim) %>% 
+    reframe(
+      p = wf_sim(...), t = seq_along(p)
+    ) %>% 
+    ungroup()
+  
+  p1 <- df %>% 
+    ggplot(aes(x = t, y = p, group = sim)) +
+    geom_line(alpha = .5) +
+    scale_y_continuous(labels = scales::percent, limits = c(0,1)) +
+    labs(subtitle = paste(
+      names(dots), unlist(dots), sep = ": ", collapse = ", ")
+    )
+  
+  p2 <- df %>% 
+    filter(t == max(t)) %>% 
+    ggplot(aes(x = p)) +
+    geom_histogram(bins = 20, color = "white") +
+    scale_x_continuous(
+      labels = scales::percent, 
+      oob = scales::oob_keep, 
+      limits = c(0,1)
+    ) +
+    coord_flip() +
+    NULL
+  
+  p1 + p2 + plot_layout(design = "AAAAB", axes = 'collect')
+}
+
+draw_sims() 
+```
+
+This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it's going to take a lot longer for the allele to be fixed or disappear.
+
+```{r}
+draw_sims(n = 10) / draw_sims(n = 100) 
+```
+
+If you're new to R programming, you might notice the use of `...` ellipses in the `draw_sims` function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows us to pass additional arguements to `wf_sim()` with less hard-coding. It's kind of a rabbit hole if I elaborate, so I'm just going to gloss over that for now.
+
+## Improving efficiency
+
+If you play around with the `wf_sim()` function as it's written right now, you'll notice that it's slow, especiqally as `t` increases. This is because this part of the function is actually quite expensive:
+
+```{r}
+#| eval: false
+#| source-line-numbers: "2,4"
+#| class-output: "highlight numberLines"
+#| output-line-numbers: "2,4"
+wf_sim <- function(p = .5, n = 50, t = 50) {
+  freqs <- c(p)
+  for(i in 2:t) {
+    freqs <- c(freqs, rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n))
+  }
+  freqs
+}
+```
+
+In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy all of the values from the previous loop, and this repeats when you get to the next iteration and so on.
+
+### Predefining vectors
+
+What you want to do instead is preallocate a vector with the full length before you start looping. The loop should then update a specific index at each iteration. This removes the need to copy all the values every time. Or at least that's what I think is going on.
 
 ```{r}
 wf_sim_vectorized <- function(p = .5, n = 50, t = 50) {
@@ -59,7 +141,7 @@ wf_sim_vectorized <- function(p = .5, n = 50, t = 50) {
   freqs
 }
 ```
-{{< lipsum 1 >}}
+Let's test if one approach is faster than the other using `bech::mark`:
 
 ```{r}
 bench::mark(
@@ -69,7 +151,31 @@ bench::mark(
 )
 ```
 
-## For loops are fine
+So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by $$O(t^2)$$ as the number of generations increases in the first approach, while the vectorized function should run in linear time $$t$$.
+
+The way I was taught to test that is to visualise it by graphs like these:
+
+```{r}
+tibble(t = c(50, 100, 500, 1000, 2000, 3000, 4000, 5000)) %>% 
+  mutate(benchmarks = map(t, ~{
+    bench::mark(
+      naive = wf_sim(t = .x),
+      vectorized = wf_sim_vectorized(t = .x),
+      check = FALSE
+    )
+  })) %>% 
+  unnest(benchmarks) %>% 
+  ggplot(aes(x = t, y = median / t, color = as.character(expression))) +
+  geom_line() +
+  geom_point() +
+  labs(color = NULL)
+```
+
+Note that the y axis is time to compute divided by $$t$$. If the function grows in linear time with $$t$$, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.
+
+### Functional programming
+
+Examples like the one above is part of the reason loops get such a bad rap in R.
 
 ```{r}
 wf_sim_tidy <- function(p = .5, n = 50, t = 50) {
@@ -145,149 +251,3 @@ df %>%
   scale_y_continuous(labels = scales::percent) 
 ```
 
-
----
-title: "Wright-Fisher simulations in R"
-author: "Emil Malta"
-date: "2025-01-03"
-toc: true
-description: "This post covers a few ways to implement genetic drift simulations in R."
-bluesky-comments:
-  mute-patterns:
-    - "📌"
-  mute-users:
-    - "did:plc:1234abcd"
-  filter-empty-replies: true
-  n-show-init: 3
-  n-show-more: 2
-draft: true
----
-
-## Genetic drift
-
-## tl;dr
-
-## Naive approach
-
-```{r}
-wf_sim <- function(p = .5, n = 50, t = 50) {
-  freqs <- c(p)
-  for(i in 2:t) {
-    freqs <- c(freqs, rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n))
-  }
-  freqs
-}
-
-plot(
-  wf_sim(), type = "l", ylim = c(0,1), 
-  main = "Wright-Fisher simulation of genetic drift"
-)
-```
-
-```{r}
-plot(
-  wf_sim(), type = "l", ylim = c(0,1), 
-  main = "Wright-Fisher simulation of genetic drift"
-)
-
-for(i in 1:100) points(wf_sim(), type = "l")
-
-```
-
-## Preallocate your vectors
-
-
-```{r}
-wf_sim_vectorized <- function(p = .5, n = 50, t = 50) {
-  freqs <- vector(mode = "numeric", length = t)
-  freqs[1] <- p
-  for(i in 2:t) {
-    freqs[i] <- rbinom(1, size = 2*n, prob = freqs[i - 1]) / (2*n)
-  }
-  freqs
-}
-```
-{{< lipsum 1 >}}
-
-```{r}
-bench::mark(
-  wf_sim(t = 5000), 
-  wf_sim_vectorized(t = 5000), 
-  check = FALSE
-)
-```
-
-## For loops are fine
-
-```{r}
-wf_sim_tidy <- function(p = .5, n = 50, t = 50) {
-  purrr::accumulate(
-    .x = vector(mode = "numeric", length = t),
-    .f = ~ rbinom(1, 2 * n, .x)/(2 * n), 
-    .init = p
-  )
-}
-```
-
-
-```{r}
-bench::mark(
-  wf_sim(t = 5000),
-  wf_sim_vectorized(t = 5000), 
-  wf_sim_tidy(t = 5000),
-  check = FALSE
-)
-```
-
-
-```{r}
-library(tidyverse)
-crossing(sim = 1:100, p_init = c(.1, .5, .9), n = c(5, 50, 500)) %>% 
-  group_by(sim, p_init, n) %>% 
-  reframe(
-    p = wf_sim_vectorized(p = p_init, n = n),
-    t = seq_along(p)
-  ) -> df
-
-df %>% 
-  ggplot(aes(x = t, y = p, group = sim)) +
-  geom_line(alpha = .2) +
-  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
-  scale_y_continuous(labels = scales::percent) 
-```
-
-```{r}
-wf_sim_selmut <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0, 
-                            fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
-
-  
-  freqs <- vector(mode = "numeric", length = t)
-  freqs[1] <- p
-  
-  
-  for(i in 2:t) {
-    fit_avg = freqs[i - 1] ^ 2 * fit_AA + 
-      2 * freqs[i - 1] * (1 - freqs[i - 1]) * fit_Aa + 
-      (1 - freqs[i - 1]) ^ 2 * fit_aa
-    
-    p_sel = (freqs[i - 1] * (freqs[i - 1] * fit_AA + (1 - freqs[i - 1]) * fit_Aa)) / fit_avg
-    p_mut <- (1 - mut_from) * p_sel + (1 - p_sel) * mut_to
-    
-    freqs[i] <- rbinom(1, 2 * n, p_mut) / (2 * n)
-  }
-  freqs
-}
-
-crossing(sim = 1:100, p_init = c(.1/250, .5, .9), n = c(5, 50, 500)) %>% 
-  group_by(sim, p_init, n) %>% 
-  reframe(
-    p = wf_sim_selmut(p = p_init, n = n, fit_Aa = .5, fit_aa = .25),
-    t = seq_along(p)
-  ) -> df
-
-df %>% 
-  ggplot(aes(x = t, y = p, group = sim)) +
-  geom_line(alpha = .2) +
-  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
-  scale_y_continuous(labels = scales::percent) 
-```
