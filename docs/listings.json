@@ -2,7 +2,8 @@
   {
     "listing": "/blog.html",
     "items": [
-      "/blog/2025-01-01-Nuuk Population Dynamics/visualising-nuuk.html"
+      "/blog/2025-01-01-Nuuk Population Dynamics/visualising-nuuk.html",
+      "/blog/2025-01-03-Wright-Fisher Simulation in R/wright-fisher.html"
     ]
   },
   {
