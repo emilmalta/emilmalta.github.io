@@ -2,8 +2,9 @@
 title: "Wright-Fisher simulations in R"
 author: "Emil Malta"
 date: "2025-01-06"
+image: "cover.jpg"
 toc: true
-description: "This post covers genetic drift simulations in R, how to compare different ways to implement it, and how to visualise it."
+description: "How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R."
 filters:
   - line-highlight
 execute:
@@ -19,9 +20,18 @@ bluesky-comments:
 draft: true
 ---
 
+This post is for R users (like me), who are interested in evolutionary biology, population genetics, or simulation studies. I'll go through a few simulation implementations of genetic drift in R, visualise the output, and interpret their result. At the very end, I'll build a simple shiny app to make it easier to mess with the parameters of the model.
+
+I hope this helps you build some intuition for the model - much of what I'm about to show you is the mental gymnastics I had to perform to really **get** this concept.
+
+
 ## The Wright Fisher model
 
-Something something. This process is called genetic drift, and explains much of the reduction of genetic variance in a population over time, especially if the population size is small. A common model used to simulate this is called the Wright-Fisher model, which assumes that:
+Much of my time as an undergraduate was spent obsessing over allele frequencies. I was/am specifically interested in how certain copies of genes become prominent in a population, or disappear entirely. While it's true that much of it can be explained by things like natural selection or de novo mutations, the thing is that allele frequencies in a population generally change over time by chance alone.
+
+This is a process is called genetic drift, and is especially noticeable in small, isolated populations. You typically notice this in sudden reduction of population size, like a natural disaster, or a migration of a small group.
+
+A common model used to simulate this is called the Wright-Fisher model, which assumes that:
 
 - The size of the population is constant over time.
 
@@ -29,7 +39,7 @@ Something something. This process is called genetic drift, and explains much of 
 
 - The change in allele frequencies is a stochastic process.
 
-Allele frequency of each generation comes from sampling a binomial distribution based on frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).
+Allele frequency of each generation comes from sampling a binomial distribution based on the frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).
 
 ## Visualising drift
 
@@ -56,9 +66,9 @@ enframe(wf_sim(), name = "t", value = "p") %>%
   scale_y_continuous(labels = scales::percent, limits = c(0,1))
 ```
 
-Now imagine 100 simulations. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulation will even have fixed or lost the allele, purely due to chance.
+Now imagine simulating this process 100 times. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulations will even have fixed or lost the allele, purely due to chance.
 
-Let's try and illustrate it. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use `patchwork` to stitch my plots together:
+Let's try and illustrate that. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use `patchwork` to stitch my plots together:
 
 ```{r}
 library(patchwork)
@@ -84,14 +94,14 @@ draw_sims <- function(sims = 100, sim_function = wf_sim, ...) {
   
   p2 <- df %>% 
     filter(t == max(t)) %>% 
-    ggplot(aes(x = p)) +
+    ggplot(aes(y = p)) +
     geom_histogram(bins = 20, color = "white") +
-    scale_x_continuous(
+    scale_y_continuous(
       labels = scales::percent, 
       oob = scales::oob_keep, 
       limits = c(0,1)
     ) +
-    coord_flip() +
+  #  coord_flip() +
     theme(axis.text = element_blank(), axis.title = element_blank())
   
   p1 + p2 + plot_layout(design = "AAAAB", axes = 'collect')
@@ -103,14 +113,16 @@ draw_sims()
 This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it's going to take a lot longer for the allele to be fixed or disappear.
 
 ```{r}
-draw_sims(n = 10) / draw_sims(n = 100) 
+draw_sims(n = 10) / draw_sims(n = 500) 
 ```
 
-If you're new to R programming, you might notice the use of `...` ellipses in the `draw_sims` function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows us to pass additional arguements to `wf_sim()` with less hard-coding. It's kind of a rabbit hole if I elaborate, so I'm just going to gloss over that for now.
+If you're new to R programming, you might notice the use of `...` ellipses in the `draw_sims` function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows me to pass additional arguements to `wf_sim()` with less hard-coding. It's kind of a rabbit hole if I elaborate, so I'm just going to gloss over that for now.
+
+One cool thing I like about the function is the fact that I can pass another function as an argument. It's one of the hallmarks of functional programming, and it's super easy to implement this style of programming in R. I do this because I plan on experimenting with a couple of different ways to implement the `wf_sim` function, and it saves me the hassle of writing a draw function for each one.
 
 ## Improving efficiency
 
-If you play around with the `wf_sim()` function as it's written right now, you'll notice that it's slow, especiqally as `t` increases. This is because this part of the function is actually quite expensive:
+If you play around with `wf_sim()` as it's written right now, you'll notice that it's slow, especiqally as `t` increases. This is because this part of the function is actually quite expensive:
 
 ```{r}
 #| eval: false
@@ -126,7 +138,7 @@ wf_sim <- function(p = .5, n = 50, t = 50) {
 }
 ```
 
-In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy all of the values from the previous loop, and this repeats when you get to the next iteration and so on.
+In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy *all* of the values from the previous loop, and this repeats when you get to the next iteration etc.
 
 ### Predefining vectors
 
@@ -153,7 +165,7 @@ bench::mark(
 )
 ```
 
-So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by $$O(t^2)$$ as the number of generations increases in the first approach, while the vectorized function should run in linear time $$t$$.
+So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by $O(t^2)$ as the number of generations increases in the first approach, while the vectorized function should run in linear time $t$.
 
 The way I was taught to test that is to visualise it by graphs like these:
 
@@ -173,7 +185,7 @@ tibble(t = c(50, 100, 500, 1000, 2000, 3000, 4000, 5000)) %>%
   labs(color = NULL)
 ```
 
-Note that the y axis is time to compute divided by $$t$$. If the function grows in linear time with $$t$$, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.
+Note that the y axis is time to compute divided by $t$. If the function grows in linear time with $t$, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.
 
 ### Functional programming
 
@@ -191,7 +203,7 @@ wf_sim_tidy <- function(p = .5, n = 50, t = 50) {
 }
 ```
 
-The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is called functional programming, and is a bit less verbose than declaring vectors and writing  loops.
+The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is another example of functional programming, and is a bit less verbose than declaring vectors and writing loops.
 
 I used to think that functions like these were inherently faster than loops too, but if you actually compare the functions, you'll see that there isn't much to gain in terms of performance compared with our vectorized function. In fact, there's going to be a bit of overhang to `accumulate`, so the tidy version is a bit slower:
 
@@ -248,7 +260,11 @@ wf_sims %>%
   scale_y_continuous(labels = scales::percent) 
 ```
 
-It's a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to build some intuition of trajectories for each condition. Top left shows a tiny population where the initial frequency is very low, while the bottom right shows a big population with a high initial frequency.
+It's a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to build some intuition of trajectories for each condition. 
+
+- The top left plot shows a tiny population where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency. 
+
+- Top right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.
 
 The frequencies at the end of the simulations get muddled out, though. Let's look at the resulting distributions:
 
@@ -280,9 +296,17 @@ wrap_plots(wf_plots) &
   theme_grey(base_size = 8)
 ```
 
-There's a lot of high-level things going on right now, but I think it's all in service of understanding the nature of the simulations. 
+This has roughly the same layout as the previous faceted graphs, except I get to marvel at the trajectories and distributions all at once. There's a lot of high-level things going on right now, but I think it's all in service of understanding the nature of the simulations, once you dwell a bit on each plot.
 
 ### Mutation
+
+Aside from genetic drift, the frequencies can also be impacted by the introduction of new alleles that happen by mutation. In a two-allele system, we can model this with 2 rates:
+
+- `mut_from`: Probability that that the allele being modeled changes from its current state into another allele.
+
+- `mut_to`: The probability that an allele mutates from another allele into the one being modeled.
+
+This is relatively simple to include in the function:
 
 ```{r}
 wf_sim_mutation <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0){
@@ -297,31 +321,68 @@ wf_sim_mutation <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0){
 }
 ```
 
+Say you model a population where a specific allele isn't present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:
+
+```{r}
+draw_sims(p = 0) / 
+draw_sims(sim_function = wf_sim_mutation, p = 0, mut_to = .10)
+```
+
+Another thing that fascinates me is the fact that a two-allele system like this has something called a mutation equilibrium, where the rates of `mut_to` and `mut_from` are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:
+
+$$p_{\text{eq}} = \frac{\mu_{\text{to}}}{\mu_{\text{from}} + \mu_{\text{to}}}$$
+
+```{r}
+draw_sims(sim_function = wf_sim_mutation, p = 0, mut_from = .1, mut_to = .2) & 
+  geom_abline(intercept = (.2) / (.1 + .2), slope = 0, color = "orange")
+```
+
+That equilibrium is reached, even if the allele is fixed from the start:
+
+```{r}
+draw_sims(sim_function = wf_sim_mutation, p = 1, mut_from = .1, mut_to = .2) & 
+  geom_abline(intercept = (.2) / (.1 + .2), slope = 0, color = "orange")
+```
+
 ### Selection
 
-```{r}
-crossing(sim = 1:100, p_init = c(.01, .5, .99), n = c(50, 500, 5000)) %>% 
-  group_by(sim, p_init, n) %>% 
-  reframe(
-    p = wf_sim_mutation(p = p_init, n = n, mut_to = .06, mut_from = .06),
-    t = seq_along(p)
-  ) -> df
+At this point, I might as well (briefly) mention selection. Selection introduces a bias in the allele frequencies being drawn at each generation, by favoring certain alleles, or genotypes. In our diploid two-allele system, where alleles are called $A$ and $a$, the relative fitness of each genotype can be denoted as $w_AA$, $wAa$, and $w_aa$. The probability of sampling allele $A$ every generation will be adjusted as follows:
 
-df %>% 
-  ggplot(aes(x = t, y = p, group = sim)) +
-  geom_line(alpha = .2) +
-  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
-  scale_y_continuous(labels = scales::percent)
-```
+$$p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}$$
 
-## Shiny
+Here:
+- $p$ is the frequency of allele $A$,
+- $q = 1 - p$, which is the frequency of allele $a$,
+- $w_{AA}$, $w_{Aa}$, and $w_{aa}$ are the fitnesses of the $AA$, $Aa$, and $aa$ genotypes, respectively.
 
 ```{r}
-df %>% 
-  filter(t == max(t)) %>% 
-  ggplot(aes(y = p)) +
-  geom_histogram(color = "white") +
-  facet_grid(paste("p_init: ", p_init) ~ paste("n: ", n)) +
-  scale_y_continuous(labels = scales::percent) 
+wf_sim_selection <- function(p = .5, n = 50, t = 50, fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+
+  freqs <- vector(mode = "numeric", length = t)
+  freqs[1] <- p
+
+  for(i in 2:t) {
+    # Calculate average fitness of the population
+    fit_avg <-
+      freqs[i - 1] ^ 2 * fit_AA + 
+      (1 - freqs[i - 1]) ^ 2 * fit_aa +
+      2 * freqs[i - 1] * (1 - freqs[i - 1]) * fit_Aa
+
+    p_sel <- 
+      (freqs[i - 1] * (freqs[i - 1] * fit_AA + (1 - freqs[i - 1]) * fit_Aa)) / 
+      (fit_avg)
+        
+    freqs[i] <- rbinom(1, 2 * n, p_sel) / (2 * n)
+  }
+  
+  freqs
+}
 ```
 
+Say that the $aa$ genotype only has a relative fitness at half of the $AA$ and $Aa$ genotypes. Even if the $a$ allele is the most prominent one at the start of simulation, most simulations will end in the $A$ allele being fixed in these conditions.
+
+```{r}
+draw_sims(sim_function = wf_sim_selection, p = 0.01, fit_aa = .5)
+```
+
+Still, some of simulations end in the $A$ allele being lost, as the initial allele frequency is very low. At this point, there's a tug-of-war going on, where genetic drift wants to delete the allele entirely, while selection tries to fix the allele completely.

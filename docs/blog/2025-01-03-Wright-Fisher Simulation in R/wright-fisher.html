@@ -8,7 +8,7 @@
 
 <meta name="author" content="Emil Malta">
 <meta name="dcterms.date" content="2025-01-06">
-<meta name="description" content="This post covers genetic drift simulations in R, how to compare different ways to implement it, and how to visualise it.">
+<meta name="description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.">
 
 <title>Wright-Fisher simulations in R – Emil Nikki Malta</title>
 <style>
@@ -138,8 +138,8 @@ window.Quarto = {
 </script>
 
 <meta property="og:title" content="Wright-Fisher simulations in R – Emil Nikki Malta">
-<meta property="og:description" content="This post covers genetic drift simulations in R, how to compare different ways to implement it, and how to visualise it.">
-<meta property="og:image" content="wright-fisher_files/figure-html/unnamed-chunk-2-1.png">
+<meta property="og:description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.">
+<meta property="og:image" content="cover.jpg">
 <meta property="og:site_name" content="Emil Nikki Malta">
 </head>
 
@@ -215,7 +215,6 @@ window.Quarto = {
   <li><a href="#mutation" id="toc-mutation" class="nav-link" data-scroll-target="#mutation">Mutation</a></li>
   <li><a href="#selection" id="toc-selection" class="nav-link" data-scroll-target="#selection">Selection</a></li>
   </ul></li>
-  <li><a href="#shiny" id="toc-shiny" class="nav-link" data-scroll-target="#shiny">Shiny</a></li>
   </ul>
 </nav>
     </div>
@@ -229,7 +228,7 @@ window.Quarto = {
 
 <div>
   <div class="description">
-    This post covers genetic drift simulations in R, how to compare different ways to implement it, and how to visualise it.
+    How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.
   </div>
 </div>
 
@@ -258,15 +257,19 @@ window.Quarto = {
 </header>
 
 
+<p>This post is for R users (like me), who are interested in evolutionary biology, population genetics, or simulation studies. I’ll go through a few simulation implementations of genetic drift in R, visualise the output, and interpret their result. At the very end, I’ll build a simple shiny app to make it easier to mess with the parameters of the model.</p>
+<p>I hope this helps you build some intuition for the model - much of what I’m about to show you is the mental gymnastics I had to perform to really <strong>get</strong> this concept.</p>
 <section id="the-wright-fisher-model" class="level2">
 <h2 class="anchored" data-anchor-id="the-wright-fisher-model">The Wright Fisher model</h2>
-<p>Something something. This process is called genetic drift, and explains much of the reduction of genetic variance in a population over time, especially if the population size is small. A common model used to simulate this is called the Wright-Fisher model, which assumes that:</p>
+<p>Much of my time as an undergraduate was spent obsessing over allele frequencies. I was/am specifically interested in how certain copies of genes become prominent in a population, or disappear entirely. While it’s true that much of it can be explained by things like natural selection or de novo mutations, the thing is that allele frequencies in a population generally change over time by chance alone.</p>
+<p>This is a process is called genetic drift, and is especially noticeable in small, isolated populations. You typically notice this in sudden reduction of population size, like a natural disaster, or a migration of a small group.</p>
+<p>A common model used to simulate this is called the Wright-Fisher model, which assumes that:</p>
 <ul>
 <li><p>The size of the population is constant over time.</p></li>
 <li><p>The generations don’t overlap.</p></li>
 <li><p>The change in allele frequencies is a stochastic process.</p></li>
 </ul>
-<p>Allele frequency of each generation comes from sampling a binomial distribution based on frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).</p>
+<p>Allele frequency of each generation comes from sampling a binomial distribution based on the frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).</p>
 </section>
 <section id="visualising-drift" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-drift">Visualising drift</h2>
@@ -296,8 +299,8 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>Now imagine 100 simulations. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulation will even have fixed or lost the allele, purely due to chance.</p>
-<p>Let’s try and illustrate it. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use <code>patchwork</code> to stitch my plots together:</p>
+<p>Now imagine simulating this process 100 times. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulations will even have fixed or lost the allele, purely due to chance.</p>
+<p>Let’s try and illustrate that. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use <code>patchwork</code> to stitch my plots together:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb3" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(patchwork)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -322,14 +325,14 @@ window.Quarto = {
 <span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  p2 <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> </span>
 <span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> p)) <span class="sc">+</span></span>
+<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">y =</span> p)) <span class="sc">+</span></span>
 <span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">20</span>, <span class="at">color =</span> <span class="st">"white"</span>) <span class="sc">+</span></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_x_continuous</span>(</span>
+<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(</span>
 <span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> scales<span class="sc">::</span>percent, </span>
 <span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">oob =</span> scales<span class="sc">::</span>oob_keep, </span>
 <span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>      <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>)</span>
 <span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>    <span class="fu">coord_flip</span>() <span class="sc">+</span></span>
+<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>  <span class="co">#  coord_flip() +</span></span>
 <span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">axis.text =</span> <span class="fu">element_blank</span>(), <span class="at">axis.title =</span> <span class="fu">element_blank</span>())</span>
 <span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>  </span>
 <span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>  p1 <span class="sc">+</span> p2 <span class="sc">+</span> <span class="fu">plot_layout</span>(<span class="at">design =</span> <span class="st">"AAAAB"</span>, <span class="at">axes =</span> <span class="st">'collect'</span>)</span>
@@ -346,7 +349,7 @@ window.Quarto = {
 </div>
 <p>This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it’s going to take a lot longer for the allele to be fixed or disappear.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">10</span>) <span class="sc">/</span> <span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">100</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">10</span>) <span class="sc">/</span> <span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">500</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -355,11 +358,12 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>If you’re new to R programming, you might notice the use of <code>...</code> ellipses in the <code>draw_sims</code> function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows us to pass additional arguements to <code>wf_sim()</code> with less hard-coding. It’s kind of a rabbit hole if I elaborate, so I’m just going to gloss over that for now.</p>
+<p>If you’re new to R programming, you might notice the use of <code>...</code> ellipses in the <code>draw_sims</code> function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows me to pass additional arguements to <code>wf_sim()</code> with less hard-coding. It’s kind of a rabbit hole if I elaborate, so I’m just going to gloss over that for now.</p>
+<p>One cool thing I like about the function is the fact that I can pass another function as an argument. It’s one of the hallmarks of functional programming, and it’s super easy to implement this style of programming in R. I do this because I plan on experimenting with a couple of different ways to implement the <code>wf_sim</code> function, and it saves me the hassle of writing a draw function for each one.</p>
 </section>
 <section id="improving-efficiency" class="level2">
 <h2 class="anchored" data-anchor-id="improving-efficiency">Improving efficiency</h2>
-<p>If you play around with the <code>wf_sim()</code> function as it’s written right now, you’ll notice that it’s slow, especiqally as <code>t</code> increases. This is because this part of the function is actually quite expensive:</p>
+<p>If you play around with <code>wf_sim()</code> as it’s written right now, you’ll notice that it’s slow, especiqally as <code>t</code> increases. This is because this part of the function is actually quite expensive:</p>
 <div class="cell" data-source-line-numbers="2,4" data-output-line-numbers="2,4">
 <div class="sourceCode cell-code" id="cb5" data-source-line-numbers="2,4" data-code-line-numbers="2,4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
 <span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
@@ -369,7 +373,7 @@ window.Quarto = {
 <span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy all of the values from the previous loop, and this repeats when you get to the next iteration and so on.</p>
+<p>In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy <em>all</em> of the values from the previous loop, and this repeats when you get to the next iteration etc.</p>
 <section id="predefining-vectors" class="level3">
 <h3 class="anchored" data-anchor-id="predefining-vectors">Predefining vectors</h3>
 <p>What you want to do instead is preallocate a vector with the full length before you start looping. The loop should then update a specific index at each iteration. This removes the need to copy all the values every time. Or at least that’s what I think is going on.</p>
@@ -394,11 +398,11 @@ window.Quarto = {
 <pre data-code-line-numbers=""><code># A tibble: 2 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             28.98ms  32.35ms      30.2   107.8MB     83.1
-2 wf_sim_vectorized(t = 5000)   4.41ms   4.92ms     155.     12.2MB     43.6</code></pre>
+1 wf_sim(t = 5000)              27.4ms  33.08ms      25.3   107.8MB     68.1
+2 wf_sim_vectorized(t = 5000)    4.4ms   5.24ms     154.     12.2MB     47.5</code></pre>
 </div>
 </div>
-<p>So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by <span class="math display">\[O(t^2)\]</span> as the number of generations increases in the first approach, while the vectorized function should run in linear time <span class="math display">\[t\]</span>.</p>
+<p>So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by <span class="math inline">\(O(t^2)\)</span> as the number of generations increases in the first approach, while the vectorized function should run in linear time <span class="math inline">\(t\)</span>.</p>
 <p>The way I was taught to test that is to visualise it by graphs like these:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb9" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">t =</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">3000</span>, <span class="dv">4000</span>, <span class="dv">5000</span>)) <span class="sc">%&gt;%</span> </span>
@@ -422,7 +426,7 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>Note that the y axis is time to compute divided by <span class="math display">\[t\]</span>. If the function grows in linear time with <span class="math display">\[t\]</span>, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.</p>
+<p>Note that the y axis is time to compute divided by <span class="math inline">\(t\)</span>. If the function grows in linear time with <span class="math inline">\(t\)</span>, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.</p>
 </section>
 <section id="functional-programming" class="level3">
 <h3 class="anchored" data-anchor-id="functional-programming">Functional programming</h3>
@@ -437,7 +441,7 @@ window.Quarto = {
 <span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  )</span>
 <span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is called functional programming, and is a bit less verbose than declaring vectors and writing loops.</p>
+<p>The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is another example of functional programming, and is a bit less verbose than declaring vectors and writing loops.</p>
 <p>I used to think that functions like these were inherently faster than loops too, but if you actually compare the functions, you’ll see that there isn’t much to gain in terms of performance compared with our vectorized function. In fact, there’s going to be a bit of overhang to <code>accumulate</code>, so the tidy version is a bit slower:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb11" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
@@ -450,9 +454,9 @@ window.Quarto = {
 <pre data-code-line-numbers=""><code># A tibble: 3 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             30.76ms   33.7ms      25.5   107.8MB     96.1
-2 wf_sim_vectorized(t = 5000)   4.38ms   4.75ms     175.     12.2MB     43.7
-3 wf_sim_tidy(t = 5000)         9.61ms  10.19ms      87.8    12.4MB     27.3</code></pre>
+1 wf_sim(t = 5000)             29.29ms  30.63ms      28.2   107.8MB    107. 
+2 wf_sim_vectorized(t = 5000)   4.31ms   4.68ms     180.     12.2MB     45.9
+3 wf_sim_tidy(t = 5000)         9.43ms  10.04ms      91.1    12.4MB     27.7</code></pre>
 </div>
 </div>
 <p>The lesson is that loops are fine. There are some benefits to the syntax in <code>accumulate</code>, but they come from the code being more legible and easier to maintain. If you’re more worried about performance you might as well stick with the humble loop.</p>
@@ -503,15 +507,15 @@ window.Quarto = {
      sim p_init     n     p     t
    &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
  1     1    0.1     5   0.1     1
- 2     1    0.1     5   0.3     2
- 3     1    0.1     5   0.4     3
- 4     1    0.1     5   0.4     4
- 5     1    0.1     5   0.6     5
- 6     1    0.1     5   0.7     6
- 7     1    0.1     5   0.7     7
- 8     1    0.1     5   1       8
- 9     1    0.1     5   1       9
-10     1    0.1     5   1      10
+ 2     1    0.1     5   0.1     2
+ 3     1    0.1     5   0.1     3
+ 4     1    0.1     5   0.2     4
+ 5     1    0.1     5   0.2     5
+ 6     1    0.1     5   0.3     6
+ 7     1    0.1     5   0.2     7
+ 8     1    0.1     5   0.3     8
+ 9     1    0.1     5   0.6     9
+10     1    0.1     5   0.4    10
 # ℹ 45,890 more rows</code></pre>
 </div>
 </div>
@@ -530,7 +534,11 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>It’s a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to build some intuition of trajectories for each condition. Top left shows a tiny population where the initial frequency is very low, while the bottom right shows a big population with a high initial frequency.</p>
+<p>It’s a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to build some intuition of trajectories for each condition.</p>
+<ul>
+<li><p>The top left plot shows a tiny population where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency.</p></li>
+<li><p>Top right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.</p></li>
+</ul>
 <p>The frequencies at the end of the simulations get muddled out, though. Let’s look at the resulting distributions:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb18" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="sc">%&gt;%</span> </span>
@@ -569,10 +577,16 @@ window.Quarto = {
 </div>
 </div>
 </div>
-<p>There’s a lot of high-level things going on right now, but I think it’s all in service of understanding the nature of the simulations.</p>
+<p>This has roughly the same layout as the previous faceted graphs, except I get to marvel at the trajectories and distributions all at once. There’s a lot of high-level things going on right now, but I think it’s all in service of understanding the nature of the simulations, once you dwell a bit on each plot.</p>
 </section>
 <section id="mutation" class="level3">
 <h3 class="anchored" data-anchor-id="mutation">Mutation</h3>
+<p>Aside from genetic drift, the frequencies can also be impacted by the introduction of new alleles that happen by mutation. In a two-allele system, we can model this with 2 rates:</p>
+<ul>
+<li><p><code>mut_from</code>: Probability that that the allele being modeled changes from its current state into another allele.</p></li>
+<li><p><code>mut_to</code>: The probability that an allele mutates from another allele into the one being modeled.</p></li>
+</ul>
+<p>This is relatively simple to include in the function:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb21" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>wf_sim_mutation <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">mut_from =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> <span class="dv">0</span>){</span>
 <span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
@@ -585,22 +599,10 @@ window.Quarto = {
 <span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-</section>
-<section id="selection" class="level3">
-<h3 class="anchored" data-anchor-id="selection">Selection</h3>
+<p>Say you model a population where a specific allele isn’t present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb22" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">crossing</span>(<span class="at">sim =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>, <span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">01</span>, .<span class="dv">5</span>, .<span class="dv">99</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">500</span>, <span class="dv">5000</span>)) <span class="sc">%&gt;%</span> </span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(sim, p_init, n) <span class="sc">%&gt;%</span> </span>
-<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reframe</span>(</span>
-<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">p =</span> <span class="fu">wf_sim_mutation</span>(<span class="at">p =</span> p_init, <span class="at">n =</span> n, <span class="at">mut_to =</span> .<span class="dv">06</span>, <span class="at">mut_from =</span> .<span class="dv">06</span>),</span>
-<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
-<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="ot">-&gt;</span> df</span>
-<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> </span>
-<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p, <span class="at">group =</span> sim)) <span class="sc">+</span></span>
-<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">alpha =</span> .<span class="dv">2</span>) <span class="sc">+</span></span>
-<span id="cb22-11"><a href="#cb22-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init: "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n: "</span>, n)) <span class="sc">+</span></span>
-<span id="cb22-12"><a href="#cb22-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">/</span> </span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> .<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -609,17 +611,11 @@ window.Quarto = {
 </div>
 </div>
 </div>
-</section>
-</section>
-<section id="shiny" class="level2">
-<h2 class="anchored" data-anchor-id="shiny">Shiny</h2>
+<p>Another thing that fascinates me is the fact that a two-allele system like this has something called a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:</p>
+<p><span class="math display">\[p_{\text{eq}} = \frac{\mu_{\text{to}}}{\mu_{\text{from}} + \mu_{\text{to}}}\]</span></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a>df <span class="sc">%&gt;%</span> </span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
-<span id="cb23-3"><a href="#cb23-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">y =</span> p)) <span class="sc">+</span></span>
-<span id="cb23-4"><a href="#cb23-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">color =</span> <span class="st">"white"</span>) <span class="sc">+</span></span>
-<span id="cb23-5"><a href="#cb23-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init: "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n: "</span>, n)) <span class="sc">+</span></span>
-<span id="cb23-6"><a href="#cb23-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -628,8 +624,62 @@ window.Quarto = {
 </div>
 </div>
 </div>
+<p>That equilibrium is reached, even if the allele is fixed from the start:</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb24" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">1</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="wright-fisher_files/figure-html/unnamed-chunk-20-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+</section>
+<section id="selection" class="level3">
+<h3 class="anchored" data-anchor-id="selection">Selection</h3>
+<p>At this point, I might as well (briefly) mention selection. Selection introduces a bias in the allele frequencies being drawn at each generation, by favoring certain alleles, or genotypes. In our diploid two-allele system, where alleles are called <span class="math inline">\(A\)</span> and <span class="math inline">\(a\)</span>, the relative fitness of each genotype can be denoted as <span class="math inline">\(w_AA\)</span>, <span class="math inline">\(wAa\)</span>, and <span class="math inline">\(w_aa\)</span>. The probability of sampling allele <span class="math inline">\(A\)</span> every generation will be adjusted as follows:</p>
+<p><span class="math display">\[p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}\]</span></p>
+<p>Here: - <span class="math inline">\(p\)</span> is the frequency of allele <span class="math inline">\(A\)</span>, - <span class="math inline">\(q = 1 - p\)</span>, which is the frequency of allele <span class="math inline">\(a\)</span>, - <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb25" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>wf_sim_selection <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">fit_AA =</span> <span class="dv">1</span>, <span class="at">fit_Aa =</span> <span class="dv">1</span>, <span class="at">fit_aa =</span> <span class="dv">1</span>) {</span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
+<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
+<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate average fitness of the population</span></span>
+<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    fit_avg <span class="ot">&lt;-</span></span>
+<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>      freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_AA <span class="sc">+</span> </span>
+<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>      (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_aa <span class="sc">+</span></span>
+<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>      <span class="dv">2</span> <span class="sc">*</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa</span>
+<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    p_sel <span class="ot">&lt;-</span> </span>
+<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>      (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> fit_AA <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa)) <span class="sc">/</span> </span>
+<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>      (fit_avg)</span>
+<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, p_sel) <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> n)</span>
+<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+</div>
+<p>Say that the <span class="math inline">\(aa\)</span> genotype only has a relative fitness at half of the <span class="math inline">\(AA\)</span> and <span class="math inline">\(Aa\)</span> genotypes. Even if the <span class="math inline">\(a\)</span> allele is the most prominent one at the start of simulation, most simulations will end in the <span class="math inline">\(A\)</span> allele being fixed in these conditions.</p>
+<div class="cell">
+<div class="sourceCode cell-code" id="cb26" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_selection, <span class="at">p =</span> <span class="fl">0.01</span>, <span class="at">fit_aa =</span> .<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="cell-output-display">
+<div>
+<figure class="figure">
+<p><img src="wright-fisher_files/figure-html/unnamed-chunk-22-1.png" class="img-fluid figure-img" width="672"></p>
+</figure>
+</div>
+</div>
+</div>
+<p>Still, some of simulations end in the <span class="math inline">\(A\)</span> allele being lost, as the initial allele frequency is very low. At this point, there’s a tug-of-war going on, where genetic drift wants to delete the allele entirely, while selection tries to fix the allele completely.</p>
 
 
+</section>
 </section>
 
 </main> <!-- /main -->
