@@ -8,7 +8,7 @@
 
 <meta name="author" content="Emil Malta">
 <meta name="dcterms.date" content="2025-01-10">
-<meta name="description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.">
+<meta name="description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, and how to implement it in R.">
 
 <title>Wright-Fisher simulations in R – Emil Nikki Malta</title>
 <style>
@@ -142,7 +142,7 @@ window.Quarto = {
 </script>
 
 <meta property="og:title" content="Wright-Fisher simulations in R – Emil Nikki Malta">
-<meta property="og:description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.">
+<meta property="og:description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, and how to implement it in R.">
 <meta property="og:image" content="cover.jpg">
 <meta property="og:site_name" content="Emil Nikki Malta">
 </head>
@@ -209,17 +209,18 @@ window.Quarto = {
   <li><a href="#the-wright-fisher-model" id="toc-the-wright-fisher-model" class="nav-link active" data-scroll-target="#the-wright-fisher-model">The Wright Fisher model</a></li>
   <li><a href="#shiny-app-tldr" id="toc-shiny-app-tldr" class="nav-link" data-scroll-target="#shiny-app-tldr">Shiny app (tl;dr)</a></li>
   <li><a href="#visualising-drift" id="toc-visualising-drift" class="nav-link" data-scroll-target="#visualising-drift">Visualising drift</a></li>
-  <li><a href="#improving-efficiency" id="toc-improving-efficiency" class="nav-link" data-scroll-target="#improving-efficiency">Improving efficiency</a>
+  <li><a href="#must-go-faster" id="toc-must-go-faster" class="nav-link" data-scroll-target="#must-go-faster">Must go faster</a>
   <ul class="collapse">
-  <li><a href="#predefining-vectors" id="toc-predefining-vectors" class="nav-link" data-scroll-target="#predefining-vectors">Predefining vectors</a></li>
+  <li><a href="#pre-allocating-vectors" id="toc-pre-allocating-vectors" class="nav-link" data-scroll-target="#pre-allocating-vectors">Pre-allocating vectors</a></li>
   <li><a href="#functional-programming" id="toc-functional-programming" class="nav-link" data-scroll-target="#functional-programming">Functional programming</a></li>
   </ul></li>
   <li><a href="#understanding-wright-fisher" id="toc-understanding-wright-fisher" class="nav-link" data-scroll-target="#understanding-wright-fisher">Understanding Wright-Fisher</a>
   <ul class="collapse">
-  <li><a href="#population-size-and-initial-allele-frequency" id="toc-population-size-and-initial-allele-frequency" class="nav-link" data-scroll-target="#population-size-and-initial-allele-frequency">Population size and initial allele frequency</a></li>
+  <li><a href="#population-size" id="toc-population-size" class="nav-link" data-scroll-target="#population-size">Population size</a></li>
   <li><a href="#mutation" id="toc-mutation" class="nav-link" data-scroll-target="#mutation">Mutation</a></li>
   <li><a href="#selection" id="toc-selection" class="nav-link" data-scroll-target="#selection">Selection</a></li>
   </ul></li>
+  <li><a href="#lessons-learned" id="toc-lessons-learned" class="nav-link" data-scroll-target="#lessons-learned">Lessons learned</a></li>
   </ul>
 </nav>
     </div>
@@ -233,7 +234,7 @@ window.Quarto = {
 
 <div>
   <div class="description">
-    How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.
+    How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, and how to implement it in R.
   </div>
 </div>
 
@@ -262,11 +263,11 @@ window.Quarto = {
 </header>
 
 
-<p>This post is for R users (like me), who are interested in evolutionary biology, population genetics, or simulation studies. I’ll go through a few simulation implementations of genetic drift in R, visualise the output, and interpret their result. At the very end, I’ll build a simple shiny app to make it easier to mess with the parameters of the model.</p>
-<p>I hope this helps you build some intuition for the model - much of what I’m about to show you is the mental gymnastics I had to perform to really <strong>get</strong> this concept.</p>
+<p>This post is for R users (like me), who are interested in evolutionary biology, population genetics, and simulation studies. I’ll go through a few technical implementations of genetic drift in R, visualise the output, and interpret the results. Along the way, I’ll show a simple shiny app to understand the parameters of the model.</p>
+<p>I hope this helps you build some intuition for Wright-Fisher simulation. Much of what I’m about to show is the mental gymnastics I had to perform to <em>get</em> this concept.</p>
 <section id="the-wright-fisher-model" class="level2">
 <h2 class="anchored" data-anchor-id="the-wright-fisher-model">The Wright Fisher model</h2>
-<p>Much of my time as an undergraduate was spent obsessing over allele frequencies. I was/am specifically interested in how certain copies of genes become prominent in a population, or disappear entirely. While it’s true that much of it can be explained by things like natural selection or de novo mutations, the thing is that allele frequencies in a population generally change over time by chance alone.</p>
+<p>Much of my time as an undergraduate was spent obsessing over allele frequencies. I was/am specifically interested in how certain copies of genes become prominent in a population, or disappear entirely. While it’s true that much of it can be explained by things like natural selection or de novo mutations, allele frequencies in a population just generally change over time by chance alone.</p>
 <p>This is a process is called genetic drift, and is especially noticeable in small, isolated populations. You typically notice this in sudden reduction of population size, like a natural disaster, or a migration of a small group.</p>
 <p>A common model used to simulate this is called the Wright-Fisher model, which assumes that:</p>
 <ul>
@@ -278,7 +279,7 @@ window.Quarto = {
 </section>
 <section id="shiny-app-tldr" class="level2">
 <h2 class="anchored" data-anchor-id="shiny-app-tldr">Shiny app (tl;dr)</h2>
-<p>This post gets into the weeds into how this stuff is implemented. If your main aim is just to understand the model, I’d suggest messing around with this little app:</p>
+<p>This post gets into the weeds of how this stuff is implemented. If your aim is just to understand the model, I’d suggest messing around with this app:</p>
 <pre class="shinylive-r" data-code-line-numbers="" data-engine="r"><code>#| '!! shinylive warning !!': |
 #|   shinylive does not work in self-contained HTML documents.
 #|   Please set `embed-resources: false` in your metadata.
@@ -478,7 +479,7 @@ shiny::shinyApp(ui, server)
 </section>
 <section id="visualising-drift" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-drift">Visualising drift</h2>
-<p>The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I’ll get into why a bit later in the post.</p>
+<p>The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I’ll get into why a bit later in the post:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb2" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
 <span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
@@ -488,7 +489,7 @@ shiny::shinyApp(ui, server)
 <span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Say you have a population of 50 animals, and you’re able to measure the frequency of an allele, once every generation. The frequency turns out to be 50% at the first generation, but for every generation that changes a little bit:</p>
+<p>Imagine a population of 50 animals, where you are able to measure the frequency of an allele <em>A</em>, once every generation. The frequency turns out to be 50% at the first generation, but for every generation that changes a little bit:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb3" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
 <span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -505,7 +506,7 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 <p>Now imagine simulating this process 100 times. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulations will even have fixed or lost the allele, purely due to chance.</p>
-<p>Let’s try and illustrate that. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use <code>patchwork</code> to stitch my plots together:</p>
+<p>Let’s try to illustrate that. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use <code>patchwork</code> to stitch my plots together:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb4" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(patchwork)</span>
 <span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -552,7 +553,7 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it’s going to take a lot longer for the allele to be fixed or disappear.</p>
+<p>This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it’s going to take a lot longer for the allele to take over or disappear completely.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb5" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">10</span>) <span class="sc">/</span> <span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">500</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
@@ -563,12 +564,12 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>If you’re new to R programming, you might notice the use of <code>...</code> ellipses in the <code>draw_sims</code> function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows me to pass additional arguements to <code>wf_sim()</code> with less hard-coding. It’s kind of a rabbit hole if I elaborate, so I’m just going to gloss over that for now.</p>
-<p>One cool thing I like about the function is the fact that I can pass another function as an argument. It’s one of the hallmarks of functional programming, and it’s super easy to implement this style of programming in R. I do this because I plan on experimenting with a couple of different ways to implement the <code>wf_sim</code> function, and it saves me the hassle of writing a draw function for each one.</p>
+<p>If you’re new to R programming, you might notice the use of <code>...</code> ellipses in the <code>draw_sims</code> function. This is one of the ways R is so outrageous for programmers coming from other languages. This allows me to pass additional arguments to <code>wf_sim()</code> with less hard-coding. It’s kind of a rabbit hole if I elaborate, so I’m just going to gloss over that for now.</p>
+<p>Another thing I like about the function is the fact that I can pass another function as an argument. It’s one of the hallmarks of functional programming, and it’s super easy to implement this style of programming in R. I do this because I plan on experimenting with a few different ways to implement <code>wf_sim()</code>, and it saves me the hassle of writing a draw function for each one.</p>
 </section>
-<section id="improving-efficiency" class="level2">
-<h2 class="anchored" data-anchor-id="improving-efficiency">Improving efficiency</h2>
-<p>If you play around with <code>wf_sim()</code> as it’s written right now, you’ll notice that it’s slow, especiqally as <code>t</code> increases. This is because this part of the function is actually quite expensive:</p>
+<section id="must-go-faster" class="level2">
+<h2 class="anchored" data-anchor-id="must-go-faster">Must go faster</h2>
+<p>If you play around with <code>wf_sim()</code> as it’s written right now, you’ll notice that it’s slow, especiqally as <code>t</code> increases. This is because this part of the function is quite expensive:</p>
 <div class="cell" data-source-line-numbers="2,4" data-output-line-numbers="2,4">
 <div class="sourceCode cell-code" id="cb6" data-source-line-numbers="2,4" data-code-line-numbers="2,4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
 <span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
@@ -578,10 +579,10 @@ shiny::shinyApp(ui, server)
 <span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy <em>all</em> of the values from the previous loop, and this repeats when you get to the next iteration etc.</p>
-<section id="predefining-vectors" class="level3">
-<h3 class="anchored" data-anchor-id="predefining-vectors">Predefining vectors</h3>
-<p>What you want to do instead is preallocate a vector with the full length before you start looping. The loop should then update a specific index at each iteration. This removes the need to copy all the values every time. Or at least that’s what I think is going on.</p>
+<p>In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy <em>all</em> of the values from the previous step in the loop, and this repeats when you get to the next step.</p>
+<section id="pre-allocating-vectors" class="level3">
+<h3 class="anchored" data-anchor-id="pre-allocating-vectors">Pre-allocating vectors</h3>
+<p>What you want to do instead is pre-allocate a vector with the full length, before you start looping. The loop should then update a specific index at each iteration. This removes the need to copy all the values every time (or at least that’s what I think is going on).</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb7" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>wf_sim_vectorized <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
 <span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
@@ -592,7 +593,7 @@ shiny::shinyApp(ui, server)
 <span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Let’s test if one approach is faster than the other using <code>bech::mark</code>:</p>
+<p>Let’s test if this approach is faster, using <code>bech::mark</code>:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb8" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
 <span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
@@ -603,12 +604,12 @@ shiny::shinyApp(ui, server)
 <pre data-code-line-numbers=""><code># A tibble: 2 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             27.62ms  30.95ms      31.3   107.8MB     86.2
-2 wf_sim_vectorized(t = 5000)   4.43ms   4.89ms     159.     12.2MB     45.8</code></pre>
+1 wf_sim(t = 5000)             28.57ms  31.43ms      31.2   107.8MB     85.7
+2 wf_sim_vectorized(t = 5000)   4.56ms   4.98ms     157.     12.2MB     43.6</code></pre>
 </div>
 </div>
-<p>So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by <span class="math inline">\(O(t^2)\)</span> as the number of generations increases in the first approach, while the vectorized function should run in linear time <span class="math inline">\(t\)</span>.</p>
-<p>The way I was taught to test that is to visualise it by graphs like these:</p>
+<p>That looks about right. My hunch is that the time it takes for the first approach to run increases by <span class="math inline">\(O(t^2)\)</span> as the number of generations increases, while the vectorized function should run in linear time <span class="math inline">\(O(t)\)</span>.</p>
+<p>The way I usually test this is to visualise it by graphs like these:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb10" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">t =</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">3000</span>, <span class="dv">4000</span>, <span class="dv">5000</span>)) <span class="sc">%&gt;%</span> </span>
 <span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">benchmarks =</span> <span class="fu">map</span>(t, <span class="sc">~</span>{</span>
@@ -631,12 +632,12 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>Note that the y axis is time to compute divided by <span class="math inline">\(t\)</span>. If the function grows in linear time with <span class="math inline">\(t\)</span>, we expect a nice horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.</p>
+<p>Note that the y axis is time to compute divided by <span class="math inline">\(t\)</span>. If the function grows in linear time with <span class="math inline">\(t\)</span>, we expect a flat horizontal line, while a function that grows quadratically will have a linear slope like the one shown here.</p>
 </section>
 <section id="functional-programming" class="level3">
 <h3 class="anchored" data-anchor-id="functional-programming">Functional programming</h3>
-<p>Examples like the one above is part of the reason loops get such a bad rap in R. Some very common feedback I got when I was starting out, was that I need to iterate using the <code>apply</code> family of functions instead, or the <code>map</code> functions of <code>purrr</code>, if you prefer the tidyverse style of programming (like I do).</p>
-<p>Let’s try to write the same function using a function from <code>purrr</code>. Because I’m building a vector that uses the initial value, or the result of a previous index, it calls for a function named <code>accumulate</code>:</p>
+<p>Examples like this is part of the reason why loops get such a bad rap in R. Some very common feedback I got when I was starting out R coding, was that I needed to iterate using the <code>apply</code> family of functions instead, or the <code>map</code> functions of <code>purrr</code>.</p>
+<p>Let’s try to write the same function using a function from <code>purrr</code>. Because I’m building a vector that repeatedly uses the result of a previous index, it calls for a function named <code>accumulate</code>:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb11" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>wf_sim_tidy <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
 <span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  purrr<span class="sc">::</span><span class="fu">accumulate</span>(</span>
@@ -647,7 +648,7 @@ shiny::shinyApp(ui, server)
 <span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is another example of functional programming, and is a bit less verbose than declaring vectors and writing loops.</p>
-<p>I used to think that functions like these were inherently faster than loops too, but if you actually compare the functions, you’ll see that there isn’t much to gain in terms of performance compared with our vectorized function. In fact, there’s going to be a bit of overhang to <code>accumulate</code>, so the tidy version is a bit slower:</p>
+<p>I used to think that functions like these were inherently faster than loops too, but if you actually compare the functions, you’ll see that there isn’t much to gain in terms of performance compared with our vectorized function. In fact, there’s going to be a bit of overhang to <code>accumulate</code>, so this version is a bit slower:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb12" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
 <span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>),</span>
@@ -659,12 +660,12 @@ shiny::shinyApp(ui, server)
 <pre data-code-line-numbers=""><code># A tibble: 3 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             29.63ms  31.58ms      27.6   107.8MB    102. 
-2 wf_sim_vectorized(t = 5000)   4.29ms   4.78ms     177.     12.2MB     45.7
-3 wf_sim_tidy(t = 5000)         9.45ms   9.98ms      90.6    12.4MB     27.6</code></pre>
+1 wf_sim(t = 5000)             30.22ms  32.52ms      27.4   107.8MB    103. 
+2 wf_sim_vectorized(t = 5000)   4.59ms   4.83ms     173.     12.2MB     43.7
+3 wf_sim_tidy(t = 5000)         9.38ms  10.23ms      89.7    12.4MB     27.9</code></pre>
 </div>
 </div>
-<p>The lesson is that loops are fine. There are some benefits to the syntax in <code>accumulate</code>, but they come from the code being more legible and easier to maintain. If you’re more worried about performance you might as well stick with the humble loop.</p>
+<p>The lesson here is that loops are fine. There are some benefits to the syntax in <code>accumulate</code>, but they come from the code being more legible and easier to maintain. These are completely valid reasons to prefer this implementation, but if you’re more worried about performance, you might as well stick with the humble loop.</p>
 </section>
 </section>
 <section id="understanding-wright-fisher" class="level2">
@@ -676,10 +677,10 @@ shiny::shinyApp(ui, server)
 <li>Presence of mutation rates</li>
 <li>Presence of natural selection</li>
 </ul>
-<section id="population-size-and-initial-allele-frequency" class="level3">
-<h3 class="anchored" data-anchor-id="population-size-and-initial-allele-frequency">Population size and initial allele frequency</h3>
-<p>At this point we’ve established that initial allele frequency and population size is important to our simulations. To really hammer that idea home, I want to make a high level visualization that shows that in one big plot.</p>
-<p>Let’s try to look at a few different pairings of allele frequency and population size. I’m choosing 3 values of <code>p</code> and 3 values of <code>n</code>, with the intent to make the simulations for each possible pairing. I use <code>crossing()</code> to make those pairs:</p>
+<section id="population-size" class="level3">
+<h3 class="anchored" data-anchor-id="population-size">Population size</h3>
+<p>At this point we’ve established that initial allele frequency and population size is important to our simulations. To really hammer that idea home, let’s make a high level visualization, that shows that in one big plot.</p>
+<p>Let’s try to look at a few different pairings of initial frequency and population size. I’m choosing 3 values of <code>p</code> and 3 values of <code>n</code>, with the intent to show the simulation results for each possible pairing. I use <code>crossing()</code> to make those pairs:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb14" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
@@ -704,17 +705,18 @@ shiny::shinyApp(ui, server)
 <span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reframe</span>(</span>
 <span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">p =</span> <span class="fu">wf_sim_tidy</span>(<span class="at">p =</span> p_init, <span class="at">n =</span> n),</span>
 <span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
-<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>wf_sims</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  ) <span class="sc">%&gt;%</span> </span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ungroup</span>()</span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-9"><a href="#cb16-9" aria-hidden="true" tabindex="-1"></a>wf_sims</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre data-code-line-numbers=""><code># A tibble: 45,900 × 5
      sim p_init     n     p     t
    &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
  1     1    0.1     5   0.1     1
- 2     1    0.1     5   0.2     2
- 3     1    0.1     5   0.2     3
- 4     1    0.1     5   0.1     4
+ 2     1    0.1     5   0.1     2
+ 3     1    0.1     5   0       3
+ 4     1    0.1     5   0       4
  5     1    0.1     5   0       5
  6     1    0.1     5   0       6
  7     1    0.1     5   0       7
@@ -739,10 +741,10 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>It’s a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to build some intuition of trajectories for each condition.</p>
+<p>It’s a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to help you build some intuition of the trajectories for each condition.</p>
 <ul>
-<li><p>The top left plot shows a tiny population where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency.</p></li>
-<li><p>Top right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.</p></li>
+<li><p>Top left plot shows a tiny population, where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency.</p></li>
+<li><p>Bottom right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.</p></li>
 </ul>
 <p>The frequencies at the end of the simulations get muddled out, though. Let’s look at the resulting distributions:</p>
 <div class="cell">
@@ -760,7 +762,7 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>That gives me the distributions, but the plot I have in my head shows the combined line graphs with the resulting distributions that came with the <code>draw_sims</code> function, as I found that helped me understand what is going on. It’s hard to show that with regular ggplot facets, so I’m resorting to draw 9 plots using <code>draw_sims</code>, and gathering them in a list:</p>
+<p>That gives me the distributions, but the plot I have in my head shows the combined line graphs, with the resulting distributions that came with the <code>draw_sims</code> function, as I found that helped me understand what was going on. It’s hard to show that with regular ggplot facets, so I’m resorting to draw 9 plots using <code>draw_sims</code>, and gathering them in a list:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb20" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>wf_plots <span class="ot">&lt;-</span> <span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>)) <span class="sc">%&gt;%</span> </span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> </span>
@@ -770,10 +772,14 @@ shiny::shinyApp(ui, server)
 <span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  )  <span class="sc">%&gt;%</span> </span>
 <span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(plots) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>When I have this list, I can wrap them up using the <code>wrap_plots</code> function of <code>patchwork</code>:</p>
+<p>When I have this list of plots, I can wrap them up using the <code>wrap_plots</code> function of <code>patchwork</code>:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb21" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">wrap_plots</span>(wf_plots) <span class="sc">&amp;</span> </span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_grey</span>(<span class="at">base_size =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_grey</span>(<span class="at">base_size =</span> <span class="dv">8</span>) <span class="sc">&amp;</span></span>
+<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme</span>(</span>
+<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.text =</span> <span class="fu">element_blank</span>(), </span>
+<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">axis.title.x =</span> <span class="fu">element_blank</span>()</span>
+<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>  )</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -788,8 +794,8 @@ shiny::shinyApp(ui, server)
 <h3 class="anchored" data-anchor-id="mutation">Mutation</h3>
 <p>Aside from genetic drift, the frequencies can also be impacted by the introduction of new alleles that happen by mutation. In a two-allele system, we can model this with 2 rates:</p>
 <ul>
-<li><p><code>mut_from</code>: Probability that that the allele being modeled changes from its current state into another allele.</p></li>
-<li><p><code>mut_to</code>: The probability that an allele mutates from another allele into the one being modeled.</p></li>
+<li><p><code>mut_from</code>: Probability that that the allele <em>A</em> changes from its current state into another allele <em>a</em>.</p></li>
+<li><p><code>mut_to</code>: The probability that the gene mutates from allele <em>a</em> into <em>A</em>.</p></li>
 </ul>
 <p>This is relatively simple to include in the function:</p>
 <div class="cell">
@@ -806,7 +812,7 @@ shiny::shinyApp(ui, server)
 </div>
 <p>Say you model a population where a specific allele isn’t present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">/</span> </span>
+<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">|</span> </span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> .<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
@@ -816,8 +822,8 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>Another thing that fascinates me is the fact that a two-allele system like this has something called a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:</p>
-<p><span class="math display">\[p_{\text{eq}} = \frac{\mu_{\text{to}}}{\mu_{\text{from}} + \mu_{\text{to}}}\]</span></p>
+<p>Another thing that fascinates me is the fact that a two-allele system like this has a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:</p>
+<p><span class="math display">\[p_{\text{eq}} = \frac{\mu_{\text{ to}}}{\mu_{\text{ from}} + \mu_{\text{ to}}}\]</span></p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb24" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
 <span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -829,7 +835,7 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>That equilibrium is reached, even if the allele is fixed from the start:</p>
+<p>That equilibrium is reached, even if the allele is fixed from the start instead:</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb25" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">1</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
 <span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
@@ -844,9 +850,9 @@ shiny::shinyApp(ui, server)
 </section>
 <section id="selection" class="level3">
 <h3 class="anchored" data-anchor-id="selection">Selection</h3>
-<p>At this point, I might as well (briefly) mention selection. Selection introduces a bias in the allele frequencies being drawn at each generation, by favoring certain alleles, or genotypes. In our diploid two-allele system, where alleles are called <span class="math inline">\(A\)</span> and <span class="math inline">\(a\)</span>, the relative fitness of each genotype can be denoted as <span class="math inline">\(w_AA\)</span>, <span class="math inline">\(wAa\)</span>, and <span class="math inline">\(w_aa\)</span>. The probability of sampling allele <span class="math inline">\(A\)</span> every generation will be adjusted as follows:</p>
+<p>At this point, I might as well mention selection. Selection introduces a bias in the allele frequencies being drawn at each generation, by favoring certain alleles, or genotypes. In our diploid two-allele system, where alleles are called <span class="math inline">\(A\)</span> and <span class="math inline">\(a\)</span>, the relative fitness of each genotype can be denoted as <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span>. The probability of sampling allele <span class="math inline">\(A\)</span> every generation will be adjusted as follows:</p>
 <p><span class="math display">\[p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}\]</span></p>
-<p>Here: - <span class="math inline">\(p\)</span> is the frequency of allele <span class="math inline">\(A\)</span>, - <span class="math inline">\(q = 1 - p\)</span>, which is the frequency of allele <span class="math inline">\(a\)</span>, - <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p>
+<p>Here: - <em>p</em> is the frequency of allele <em>A</em>, - <em>q = 1 - p</em>, which is the frequency of allele <em>a</em>, - <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb26" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>wf_sim_selection <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">fit_AA =</span> <span class="dv">1</span>, <span class="at">fit_Aa =</span> <span class="dv">1</span>, <span class="at">fit_aa =</span> <span class="dv">1</span>) {</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -870,7 +876,7 @@ shiny::shinyApp(ui, server)
 <span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>  freqs</span>
 <span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
-<p>Say that the <span class="math inline">\(aa\)</span> genotype only has a relative fitness at half of the <span class="math inline">\(AA\)</span> and <span class="math inline">\(Aa\)</span> genotypes. Even if the <span class="math inline">\(a\)</span> allele is the most prominent one at the start of simulation, most simulations will end in the <span class="math inline">\(A\)</span> allele being fixed in these conditions.</p>
+<p>Say that the <em>aa</em> genotype only has a relative fitness at half of the <em>AA</em> and <em>Aa</em> genotypes. Even if the <em>a</em> allele is the most prominent one at the start, most simulations will end in the <em>A</em> allele being fixed in these conditions.</p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb27" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_selection, <span class="at">p =</span> <span class="fl">0.01</span>, <span class="at">fit_aa =</span> .<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
@@ -882,9 +888,19 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 <p>Still, some of simulations end in the <span class="math inline">\(A\)</span> allele being lost, as the initial allele frequency is very low. At this point, there’s a tug-of-war going on, where genetic drift wants to delete the allele entirely, while selection tries to fix the allele completely.</p>
-
-
 </section>
+</section>
+<section id="lessons-learned" class="level2">
+<h2 class="anchored" data-anchor-id="lessons-learned">Lessons learned</h2>
+<p>Wright-Fisher is a powerful tool to model and understand how various processes affect the genetic composition of populations. I hope this post helped you understand how population size, mutation, and selection interact with genetic drift to shape allele frequencies in a population.</p>
+<ul>
+<li><p>Population size matters. Small populations show faster fixation or loss of alleles, as random genetic drift is much stronger here.</p></li>
+<li><p>Mutation and selection counteract drift.</p></li>
+<li><p>Implementation matters for efficiency. Some of the simulation functions implemented here produced the exact same output, but had vastly different run times.</p></li>
+</ul>
+<p>I think the most powerful part of this whole thing is the inclusion of the shinylive app. Tinkering with tools like this is probably the most effective way of gaining intuition for these kinds of models - that along with effective visualization.</p>
+
+
 </section>
 
 </main> <!-- /main -->
