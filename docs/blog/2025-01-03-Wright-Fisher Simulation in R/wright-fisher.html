@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
 
 <meta name="author" content="Emil Malta">
-<meta name="dcterms.date" content="2025-01-06">
+<meta name="dcterms.date" content="2025-01-10">
 <meta name="description" content="How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R.">
 
 <title>Wright-Fisher simulations in R – Emil Nikki Malta</title>
@@ -77,6 +77,11 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
 <link href="../../site_libs/bootstrap/bootstrap-d58a929674a9c68af8500a5125edf83c.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
 <link href="../../site_libs/quarto-contrib/line-highlight-1.0.0/line-highlight.css" rel="stylesheet">
+<meta name="shinylive:serviceworker_dir" content="../..">
+<script src="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/load-shinylive-sw.js" type="module"></script>
+<script src="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/run-python-blocks.js" type="module"></script>
+<link href="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/shinylive.css" rel="stylesheet">
+<link href="../../site_libs/quarto-contrib/shinylive-quarto-css/shinylive-quarto.css" rel="stylesheet">
 <script src="../../site_libs/quarto-contrib/iconify-2.1.0/iconify-icon.min.js"></script>
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
@@ -105,7 +110,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
-<meta name="quarto:status" content="draft">
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml-full.js" type="text/javascript"></script>
@@ -146,7 +150,7 @@ window.Quarto = {
 <body class="nav-fixed">
 
 <div id="quarto-search-results"></div>
-  <header id="quarto-header" class="headroom fixed-top"><div id="quarto-draft-alert" class="alert alert-warning"><i class="bi bi-pencil-square"></i>Draft</div>
+  <header id="quarto-header" class="headroom fixed-top">
     <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
       <div class="navbar-container container-fluid">
       <div class="navbar-brand-container mx-auto">
@@ -203,6 +207,7 @@ window.Quarto = {
    
   <ul>
   <li><a href="#the-wright-fisher-model" id="toc-the-wright-fisher-model" class="nav-link active" data-scroll-target="#the-wright-fisher-model">The Wright Fisher model</a></li>
+  <li><a href="#shiny-app-tldr" id="toc-shiny-app-tldr" class="nav-link" data-scroll-target="#shiny-app-tldr">Shiny app (tl;dr)</a></li>
   <li><a href="#visualising-drift" id="toc-visualising-drift" class="nav-link" data-scroll-target="#visualising-drift">Visualising drift</a></li>
   <li><a href="#improving-efficiency" id="toc-improving-efficiency" class="nav-link" data-scroll-target="#improving-efficiency">Improving efficiency</a>
   <ul class="collapse">
@@ -245,7 +250,7 @@ window.Quarto = {
     <div>
     <div class="quarto-title-meta-heading">Published</div>
     <div class="quarto-title-meta-contents">
-      <p class="date">January 6, 2025</p>
+      <p class="date">January 10, 2025</p>
     </div>
   </div>
   
@@ -271,26 +276,226 @@ window.Quarto = {
 </ul>
 <p>Allele frequency of each generation comes from sampling a binomial distribution based on the frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).</p>
 </section>
+<section id="shiny-app-tldr" class="level2">
+<h2 class="anchored" data-anchor-id="shiny-app-tldr">Shiny app (tl;dr)</h2>
+<p>This post gets into the weeds into how this stuff is implemented. If your main aim is just to understand the model, I’d suggest messing around with this little app:</p>
+<pre class="shinylive-r" data-code-line-numbers="" data-engine="r"><code>#| '!! shinylive warning !!': |
+#|   shinylive does not work in self-contained HTML documents.
+#|   Please set `embed-resources: false` in your metadata.
+#| standalone: true
+#| viewerHeight: 840
+
+library(patchwork)
+library(ggplot2)
+library(scales)
+library(tibble)
+library(shiny)
+library(dplyr)
+
+helper &lt;- function(n = 250, p = .5, t = 100L, mut_to = 0, mut_from = 0,
+                   fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+  purrr::accumulate(
+    .x = vector("numeric", t - 1),
+    .f = ~ {
+      # Calculate average fitness of the population
+      fit_avg = .x ^ 2 * fit_AA + 2 * .x * (1 - .x) * fit_Aa + (1 - .x) ^ 2 * fit_aa
+
+      # Calculate frequency after selection and mutation
+      p_sel = (.x * (.x * fit_AA + (1 - .x) * fit_Aa)) / fit_avg
+      p_sel_mut = (1 - mut_from ) * p_sel + (1 - p_sel) * mut_to
+
+    },
+    .init = p
+  )
+}
+
+wf_sim &lt;- function(n = 250, p = .5, t = 100L, mut_to = 0, mut_from = 0,
+                   fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+
+  # Simulate allele frequency changes using purrr::accumulate
+  allele_frequencies &lt;- purrr::accumulate(
+    .x = vector("numeric", t - 1),
+    .f = ~ {
+      # Calculate average fitness of the population
+      fit_avg = .x ^ 2 * fit_AA + 2 * .x * (1 - .x) * fit_Aa + (1 - .x) ^ 2 * fit_aa
+
+      # Calculate frequency after selection and mutation
+      p_sel = (.x * (.x * fit_AA + (1 - .x) * fit_Aa)) / fit_avg
+      p_sel_mut = (1 - mut_from ) * p_sel + (1 - p_sel) * mut_to
+
+      # Generate next generation allele frequency
+      rbinom(1, 2 * n, p_sel_mut) / (2 * n)
+    },
+    .init = p
+  )
+
+  return(allele_frequencies)
+}
+
+wf_plot &lt;- function(..., num_sims = 100L, show_hist = FALSE) {
+
+  if(num_sims &lt; 1) stop("Invalid value of 'num_sims'")
+
+  plot_df &lt;- reframe(
+    group_by(
+      tibble(sim = 1:num_sims), sim),
+    p = wf_sim(...), t = seq_along(p)
+  )
+
+  a &lt;- seq_along(helper(...))
+  b &lt;- helper(...)
+
+  p1 &lt;- ggplot2::ggplot(plot_df, ggplot2::aes(x = t, y = p, group = sim)) +
+    ggplot2::geom_line(linewidth = .8, alpha = .5) +
+    geom_line(
+      data = tibble(a = a, b = b), aes(x = a, y = b, group = NULL),
+      linewidth = 1, color = "orange"
+    ) +
+    ggplot2::scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+    ggplot2::labs(
+      title = "Wright-Fisher simulation of genetic drift",
+      subtitle = "Allele freq. (A)",
+      x = "Generation", y = "Allele freq."
+    )
+
+  if(show_hist) {
+  p2 &lt;- ggplot2::ggplot(
+    data = dplyr::slice(dplyr::group_by(plot_df, sim), dplyr::n()),
+    aes(p)) +
+    ggplot2::geom_histogram(color = "white", binwidth = .025, boundary = 0) +
+    ggplot2::scale_x_continuous(limits = c(0, 1), oob = scales::squish) +
+    ggplot2::coord_flip() +
+    ggplot2::theme(axis.title.y = ggplot2::element_blank()) +
+    ggplot2::labs(
+      subtitle = "Freq(A) distribution",
+      y = "Count"
+    ) +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_blank(),
+      panel.grid.minor.x = ggplot2::element_blank()
+    )
+
+    return((p1 + p2) + patchwork::plot_layout(widths = c(.8, .2)))
+  }
+
+  p1
+
+}
+
+ui &lt;- bslib::page_sidebar(
+    title = "Simulate Genetic Drift",
+    sidebar = bslib::sidebar(
+      shiny::sliderInput("p", label = "Initial allele freq. (p)", min = 0, max = 1, value = .5, ticks = FALSE),
+      shiny::sliderInput("n", label = "Population size (n)", min = 1, max = 500, value = 250, ticks = FALSE),
+      shiny::sliderInput("t", label = "Number of generations", min = 1, max = 200, value = 100, ticks = FALSE),
+      shiny::sliderInput("mut_to", label = "Mutation rate (a -&gt; A)", min = 0, max = 1, value = 0, ticks = FALSE),
+      shiny::sliderInput("mut_from", label = "Mutation rate (A -&gt; a)", min = 0, max = 1, value = 0, ticks = FALSE),
+      shiny::div(
+        style = "display: flex; flex-direction: row;",
+        shiny::numericInput("fit_AA", "Fit AA:", value = 1, step = .1),
+        shiny::numericInput("fit_Aa", "Fit Aa:", value = 1, step = .1),
+        shiny::numericInput("fit_aa", "Fit aa:", value = 1, step = .1)
+      ),
+      shiny::numericInput("num_sims", label = "Number of simulations", value = 100, min = 1),
+      shiny::radioButtons("show_hist", label = "Histogram", choices = c("Show", "Hide"), selected = "Hide"),
+      shiny::actionButton("reset", label = "Reset")
+    ),
+    bslib::card(shiny::plotOutput("simplot"), width = "80%")
+)
+
+server &lt;- function(input, output, session) {
+  
+  input_values &lt;- shiny::reactiveValues(
+    p = 0.5,
+    n = 250,
+    t = 100,
+    mut_from = 0,
+    mut_to = 0,
+    fit_AA = 1,
+    fit_Aa = 1,
+    fit_aa = 1,
+    num_sims = 100,
+    show_hist = "Hide"
+  )
+  
+  shiny::observe({
+    input_values$p &lt;- input$p
+    input_values$n &lt;- input$n
+    input_values$t &lt;- input$t
+    input_values$mut_from &lt;- input$mut_from
+    input_values$mut_to &lt;- input$mut_to
+    input_values$fit_AA &lt;- input$fit_AA
+    input_values$fit_Aa &lt;- input$fit_Aa
+    input_values$fit_aa &lt;- input$fit_aa
+    input_values$num_sims &lt;- input$num_sims
+    input_values$show_hist &lt;- input$show_hist
+  })
+  
+  output$simplot &lt;- shiny::renderPlot({
+    wf_plot(
+      n = input_values$n,
+      p = input_values$p,
+      t = input_values$t,
+      mut_from = input_values$mut_from,
+      mut_to = input_values$mut_to,
+      fit_AA = input_values$fit_AA,
+      fit_Aa = input_values$fit_Aa,
+      fit_aa = input_values$fit_aa,
+      num_sims = input_values$num_sims,
+      show_hist = input_values$show_hist == "Show"
+    )
+  })
+  
+  shiny::observeEvent(input$reset, {
+    # Reset input_values to their default values
+    input_values$p &lt;- 0.5
+    input_values$n &lt;- 250
+    input_values$t &lt;- 100
+    input_values$mut_from &lt;- 0
+    input_values$mut_to &lt;- 0
+    input_values$fit_AA &lt;- 1
+    input_values$fit_Aa &lt;- 1
+    input_values$fit_aa &lt;- 1
+  })
+  
+  shiny::observeEvent(input$reset, {
+    # Reset all input values to their default values
+    shiny::updateSliderInput(session, "p", value = 0.5)
+    shiny::updateSliderInput(session, "n", value = 250)
+    shiny::updateSliderInput(session, "t", value = 100)
+    shiny::updateSliderInput(session, "mut_from", value = 0)
+    shiny::updateSliderInput(session, "mut_to", value = 0)
+    shiny::updateNumericInput(session, "fit_AA", value = 1)
+    shiny::updateNumericInput(session, "fit_Aa", value = 1)
+    shiny::updateNumericInput(session, "fit_aa", value = 1)
+  })
+  
+}
+shiny::shinyApp(ui, server)
+</code></pre>
+<p><br></p>
+<p>(I’m not 100% there yet - the histograms break the app, but I am on it!)</p>
+</section>
 <section id="visualising-drift" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-drift">Visualising drift</h2>
 <p>The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I’ll get into why a bit later in the post.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb1" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
-<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
-<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
-<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a>    freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(freqs, <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n))</span>
-<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
-<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb2" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>    freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(freqs, <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n))</span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Say you have a population of 50 animals, and you’re able to measure the frequency of an allele, once every generation. The frequency turns out to be 50% at the first generation, but for every generation that changes a little bit:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb2" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
-<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">enframe</span>(<span class="fu">wf_sim</span>(), <span class="at">name =</span> <span class="st">"t"</span>, <span class="at">value =</span> <span class="st">"p"</span>) <span class="sc">%&gt;%</span> </span>
-<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p)) <span class="sc">+</span></span>
-<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
-<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent, <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb3" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(tidyverse)</span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="fu">enframe</span>(<span class="fu">wf_sim</span>(), <span class="at">name =</span> <span class="st">"t"</span>, <span class="at">value =</span> <span class="st">"p"</span>) <span class="sc">%&gt;%</span> </span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p)) <span class="sc">+</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent, <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -302,43 +507,43 @@ window.Quarto = {
 <p>Now imagine simulating this process 100 times. Even as every simulation started with the same allele frequency, every trajectory will look different. Some simulations will even have fixed or lost the allele, purely due to chance.</p>
 <p>Let’s try and illustrate that. This function draws the allele trajectories for every simulation, along with a histogram of the distribution of allele frequencies at the final generation. I use <code>patchwork</code> to stitch my plots together:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb3" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(patchwork)</span>
-<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>draw_sims <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">sims =</span> <span class="dv">100</span>, <span class="at">sim_function =</span> wf_sim, ...) {</span>
-<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a>  dots <span class="ot">&lt;-</span> <span class="fu">list</span>(...)</span>
-<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">sim =</span> <span class="fu">seq_along</span>(<span class="dv">1</span><span class="sc">:</span>sims)) <span class="sc">%&gt;%</span> </span>
-<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(sim) <span class="sc">%&gt;%</span> </span>
-<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reframe</span>(</span>
-<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a>      <span class="at">p =</span> <span class="fu">sim_function</span>(...), <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
-<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span> </span>
-<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ungroup</span>()</span>
-<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb3-14"><a href="#cb3-14" aria-hidden="true" tabindex="-1"></a>  p1 <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> </span>
-<span id="cb3-15"><a href="#cb3-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p, <span class="at">group =</span> sim)) <span class="sc">+</span></span>
-<span id="cb3-16"><a href="#cb3-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">alpha =</span> .<span class="dv">25</span>) <span class="sc">+</span></span>
-<span id="cb3-17"><a href="#cb3-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent, <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>)) <span class="sc">+</span></span>
-<span id="cb3-18"><a href="#cb3-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="fu">paste</span>(</span>
-<span id="cb3-19"><a href="#cb3-19" aria-hidden="true" tabindex="-1"></a>      <span class="fu">names</span>(dots), <span class="fu">unlist</span>(dots), <span class="at">sep =</span> <span class="st">" = "</span>, <span class="at">collapse =</span> <span class="st">", "</span>)</span>
-<span id="cb3-20"><a href="#cb3-20" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb3-21"><a href="#cb3-21" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb3-22"><a href="#cb3-22" aria-hidden="true" tabindex="-1"></a>  p2 <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> </span>
-<span id="cb3-23"><a href="#cb3-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
-<span id="cb3-24"><a href="#cb3-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">y =</span> p)) <span class="sc">+</span></span>
-<span id="cb3-25"><a href="#cb3-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">20</span>, <span class="at">color =</span> <span class="st">"white"</span>) <span class="sc">+</span></span>
-<span id="cb3-26"><a href="#cb3-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(</span>
-<span id="cb3-27"><a href="#cb3-27" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> scales<span class="sc">::</span>percent, </span>
-<span id="cb3-28"><a href="#cb3-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">oob =</span> scales<span class="sc">::</span>oob_keep, </span>
-<span id="cb3-29"><a href="#cb3-29" aria-hidden="true" tabindex="-1"></a>      <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>)</span>
-<span id="cb3-30"><a href="#cb3-30" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
-<span id="cb3-31"><a href="#cb3-31" aria-hidden="true" tabindex="-1"></a>  <span class="co">#  coord_flip() +</span></span>
-<span id="cb3-32"><a href="#cb3-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">axis.text =</span> <span class="fu">element_blank</span>(), <span class="at">axis.title =</span> <span class="fu">element_blank</span>())</span>
-<span id="cb3-33"><a href="#cb3-33" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb3-34"><a href="#cb3-34" aria-hidden="true" tabindex="-1"></a>  p1 <span class="sc">+</span> p2 <span class="sc">+</span> <span class="fu">plot_layout</span>(<span class="at">design =</span> <span class="st">"AAAAB"</span>, <span class="at">axes =</span> <span class="st">'collect'</span>)</span>
-<span id="cb3-35"><a href="#cb3-35" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb3-36"><a href="#cb3-36" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb3-37"><a href="#cb3-37" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>() </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb4" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">library</span>(patchwork)</span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-3"><a href="#cb4-3" aria-hidden="true" tabindex="-1"></a>draw_sims <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">sims =</span> <span class="dv">100</span>, <span class="at">sim_function =</span> wf_sim, ...) {</span>
+<span id="cb4-4"><a href="#cb4-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-5"><a href="#cb4-5" aria-hidden="true" tabindex="-1"></a>  dots <span class="ot">&lt;-</span> <span class="fu">list</span>(...)</span>
+<span id="cb4-6"><a href="#cb4-6" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-7"><a href="#cb4-7" aria-hidden="true" tabindex="-1"></a>  df <span class="ot">&lt;-</span> <span class="fu">tibble</span>(<span class="at">sim =</span> <span class="fu">seq_along</span>(<span class="dv">1</span><span class="sc">:</span>sims)) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-8"><a href="#cb4-8" aria-hidden="true" tabindex="-1"></a>    <span class="fu">group_by</span>(sim) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-9"><a href="#cb4-9" aria-hidden="true" tabindex="-1"></a>    <span class="fu">reframe</span>(</span>
+<span id="cb4-10"><a href="#cb4-10" aria-hidden="true" tabindex="-1"></a>      <span class="at">p =</span> <span class="fu">sim_function</span>(...), <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
+<span id="cb4-11"><a href="#cb4-11" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-12"><a href="#cb4-12" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ungroup</span>()</span>
+<span id="cb4-13"><a href="#cb4-13" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-14"><a href="#cb4-14" aria-hidden="true" tabindex="-1"></a>  p1 <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> </span>
+<span id="cb4-15"><a href="#cb4-15" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p, <span class="at">group =</span> sim)) <span class="sc">+</span></span>
+<span id="cb4-16"><a href="#cb4-16" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_line</span>(<span class="at">alpha =</span> .<span class="dv">25</span>) <span class="sc">+</span></span>
+<span id="cb4-17"><a href="#cb4-17" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent, <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>)) <span class="sc">+</span></span>
+<span id="cb4-18"><a href="#cb4-18" aria-hidden="true" tabindex="-1"></a>    <span class="fu">labs</span>(<span class="at">title =</span> <span class="fu">paste</span>(</span>
+<span id="cb4-19"><a href="#cb4-19" aria-hidden="true" tabindex="-1"></a>      <span class="fu">names</span>(dots), <span class="fu">unlist</span>(dots), <span class="at">sep =</span> <span class="st">" = "</span>, <span class="at">collapse =</span> <span class="st">", "</span>)</span>
+<span id="cb4-20"><a href="#cb4-20" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb4-21"><a href="#cb4-21" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-22"><a href="#cb4-22" aria-hidden="true" tabindex="-1"></a>  p2 <span class="ot">&lt;-</span> df <span class="sc">%&gt;%</span> </span>
+<span id="cb4-23"><a href="#cb4-23" aria-hidden="true" tabindex="-1"></a>    <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
+<span id="cb4-24"><a href="#cb4-24" aria-hidden="true" tabindex="-1"></a>    <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">y =</span> p)) <span class="sc">+</span></span>
+<span id="cb4-25"><a href="#cb4-25" aria-hidden="true" tabindex="-1"></a>    <span class="fu">geom_histogram</span>(<span class="at">bins =</span> <span class="dv">20</span>, <span class="at">color =</span> <span class="st">"white"</span>) <span class="sc">+</span></span>
+<span id="cb4-26"><a href="#cb4-26" aria-hidden="true" tabindex="-1"></a>    <span class="fu">scale_y_continuous</span>(</span>
+<span id="cb4-27"><a href="#cb4-27" aria-hidden="true" tabindex="-1"></a>      <span class="at">labels =</span> scales<span class="sc">::</span>percent, </span>
+<span id="cb4-28"><a href="#cb4-28" aria-hidden="true" tabindex="-1"></a>      <span class="at">oob =</span> scales<span class="sc">::</span>oob_keep, </span>
+<span id="cb4-29"><a href="#cb4-29" aria-hidden="true" tabindex="-1"></a>      <span class="at">limits =</span> <span class="fu">c</span>(<span class="dv">0</span>,<span class="dv">1</span>)</span>
+<span id="cb4-30"><a href="#cb4-30" aria-hidden="true" tabindex="-1"></a>    ) <span class="sc">+</span></span>
+<span id="cb4-31"><a href="#cb4-31" aria-hidden="true" tabindex="-1"></a>  <span class="co">#  coord_flip() +</span></span>
+<span id="cb4-32"><a href="#cb4-32" aria-hidden="true" tabindex="-1"></a>    <span class="fu">theme</span>(<span class="at">axis.text =</span> <span class="fu">element_blank</span>(), <span class="at">axis.title =</span> <span class="fu">element_blank</span>())</span>
+<span id="cb4-33"><a href="#cb4-33" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb4-34"><a href="#cb4-34" aria-hidden="true" tabindex="-1"></a>  p1 <span class="sc">+</span> p2 <span class="sc">+</span> <span class="fu">plot_layout</span>(<span class="at">design =</span> <span class="st">"AAAAB"</span>, <span class="at">axes =</span> <span class="st">'collect'</span>)</span>
+<span id="cb4-35"><a href="#cb4-35" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb4-36"><a href="#cb4-36" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb4-37"><a href="#cb4-37" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>() </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -349,7 +554,7 @@ window.Quarto = {
 </div>
 <p>This trajectory is dependent on population size. In smaller populations, the trajectories will be all over the place, and the eventual loss or fixation of an allele will be much more likely. The opposite is true for larger populations, and it’s going to take a lot longer for the allele to be fixed or disappear.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb4" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">10</span>) <span class="sc">/</span> <span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">500</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb5" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">10</span>) <span class="sc">/</span> <span class="fu">draw_sims</span>(<span class="at">n =</span> <span class="dv">500</span>) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -365,59 +570,59 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="improving-efficiency">Improving efficiency</h2>
 <p>If you play around with <code>wf_sim()</code> as it’s written right now, you’ll notice that it’s slow, especiqally as <code>t</code> increases. This is because this part of the function is actually quite expensive:</p>
 <div class="cell" data-source-line-numbers="2,4" data-output-line-numbers="2,4">
-<div class="sourceCode cell-code" id="cb5" data-source-line-numbers="2,4" data-code-line-numbers="2,4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
-<span id="cb5-2"><a href="#cb5-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
-<span id="cb5-3"><a href="#cb5-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
-<span id="cb5-4"><a href="#cb5-4" aria-hidden="true" tabindex="-1"></a>    freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(freqs, <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n))</span>
-<span id="cb5-5"><a href="#cb5-5" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb5-6"><a href="#cb5-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
-<span id="cb5-7"><a href="#cb5-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb6" data-source-line-numbers="2,4" data-code-line-numbers="2,4"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>wf_sim <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
+<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(p)</span>
+<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>    freqs <span class="ot">&lt;-</span> <span class="fu">c</span>(freqs, <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n))</span>
+<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy <em>all</em> of the values from the previous loop, and this repeats when you get to the next iteration etc.</p>
 <section id="predefining-vectors" class="level3">
 <h3 class="anchored" data-anchor-id="predefining-vectors">Predefining vectors</h3>
 <p>What you want to do instead is preallocate a vector with the full length before you start looping. The loop should then update a specific index at each iteration. This removes the need to copy all the values every time. Or at least that’s what I think is going on.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb6" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a>wf_sim_vectorized <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
-<span id="cb6-2"><a href="#cb6-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
-<span id="cb6-3"><a href="#cb6-3" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
-<span id="cb6-4"><a href="#cb6-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
-<span id="cb6-5"><a href="#cb6-5" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n)</span>
-<span id="cb6-6"><a href="#cb6-6" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb6-7"><a href="#cb6-7" aria-hidden="true" tabindex="-1"></a>  freqs</span>
-<span id="cb6-8"><a href="#cb6-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb7" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>wf_sim_vectorized <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
+<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
+<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
+<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="at">size =</span> <span class="dv">2</span><span class="sc">*</span>n, <span class="at">prob =</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">/</span> (<span class="dv">2</span><span class="sc">*</span>n)</span>
+<span id="cb7-6"><a href="#cb7-6" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb7-7"><a href="#cb7-7" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb7-8"><a href="#cb7-8" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Let’s test if one approach is faster than the other using <code>bech::mark</code>:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb7" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
-<span id="cb7-2"><a href="#cb7-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
-<span id="cb7-3"><a href="#cb7-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
-<span id="cb7-4"><a href="#cb7-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">check =</span> <span class="cn">FALSE</span></span>
-<span id="cb7-5"><a href="#cb7-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb8" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  <span class="at">check =</span> <span class="cn">FALSE</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre data-code-line-numbers=""><code># A tibble: 2 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)              27.4ms  33.08ms      25.3   107.8MB     68.1
-2 wf_sim_vectorized(t = 5000)    4.4ms   5.24ms     154.     12.2MB     47.5</code></pre>
+1 wf_sim(t = 5000)             27.62ms  30.95ms      31.3   107.8MB     86.2
+2 wf_sim_vectorized(t = 5000)   4.43ms   4.89ms     159.     12.2MB     45.8</code></pre>
 </div>
 </div>
 <p>So yeah, that sounds about right. My hunch is that the time it takes for the algorithm to run increases by <span class="math inline">\(O(t^2)\)</span> as the number of generations increases in the first approach, while the vectorized function should run in linear time <span class="math inline">\(t\)</span>.</p>
 <p>The way I was taught to test that is to visualise it by graphs like these:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb9" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">t =</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">3000</span>, <span class="dv">4000</span>, <span class="dv">5000</span>)) <span class="sc">%&gt;%</span> </span>
-<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">benchmarks =</span> <span class="fu">map</span>(t, <span class="sc">~</span>{</span>
-<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a>    bench<span class="sc">::</span><span class="fu">mark</span>(</span>
-<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a>      <span class="at">naive =</span> <span class="fu">wf_sim</span>(<span class="at">t =</span> .x),</span>
-<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">vectorized =</span> <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> .x),</span>
-<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">check =</span> <span class="cn">FALSE</span></span>
-<span id="cb9-7"><a href="#cb9-7" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb9-8"><a href="#cb9-8" aria-hidden="true" tabindex="-1"></a>  })) <span class="sc">%&gt;%</span> </span>
-<span id="cb9-9"><a href="#cb9-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(benchmarks) <span class="sc">%&gt;%</span> </span>
-<span id="cb9-10"><a href="#cb9-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> median <span class="sc">/</span> t, <span class="at">color =</span> <span class="fu">as.character</span>(expression))) <span class="sc">+</span></span>
-<span id="cb9-11"><a href="#cb9-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
-<span id="cb9-12"><a href="#cb9-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
-<span id="cb9-13"><a href="#cb9-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">color =</span> <span class="cn">NULL</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb10" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="fu">tibble</span>(<span class="at">t =</span> <span class="fu">c</span>(<span class="dv">50</span>, <span class="dv">100</span>, <span class="dv">500</span>, <span class="dv">1000</span>, <span class="dv">2000</span>, <span class="dv">3000</span>, <span class="dv">4000</span>, <span class="dv">5000</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">benchmarks =</span> <span class="fu">map</span>(t, <span class="sc">~</span>{</span>
+<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    bench<span class="sc">::</span><span class="fu">mark</span>(</span>
+<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>      <span class="at">naive =</span> <span class="fu">wf_sim</span>(<span class="at">t =</span> .x),</span>
+<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>      <span class="at">vectorized =</span> <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> .x),</span>
+<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>      <span class="at">check =</span> <span class="cn">FALSE</span></span>
+<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb10-8"><a href="#cb10-8" aria-hidden="true" tabindex="-1"></a>  })) <span class="sc">%&gt;%</span> </span>
+<span id="cb10-9"><a href="#cb10-9" aria-hidden="true" tabindex="-1"></a>  <span class="fu">unnest</span>(benchmarks) <span class="sc">%&gt;%</span> </span>
+<span id="cb10-10"><a href="#cb10-10" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> median <span class="sc">/</span> t, <span class="at">color =</span> <span class="fu">as.character</span>(expression))) <span class="sc">+</span></span>
+<span id="cb10-11"><a href="#cb10-11" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>() <span class="sc">+</span></span>
+<span id="cb10-12"><a href="#cb10-12" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_point</span>() <span class="sc">+</span></span>
+<span id="cb10-13"><a href="#cb10-13" aria-hidden="true" tabindex="-1"></a>  <span class="fu">labs</span>(<span class="at">color =</span> <span class="cn">NULL</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -433,30 +638,30 @@ window.Quarto = {
 <p>Examples like the one above is part of the reason loops get such a bad rap in R. Some very common feedback I got when I was starting out, was that I need to iterate using the <code>apply</code> family of functions instead, or the <code>map</code> functions of <code>purrr</code>, if you prefer the tidyverse style of programming (like I do).</p>
 <p>Let’s try to write the same function using a function from <code>purrr</code>. Because I’m building a vector that uses the initial value, or the result of a previous index, it calls for a function named <code>accumulate</code>:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb10" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a>wf_sim_tidy <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
-<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a>  purrr<span class="sc">::</span><span class="fu">accumulate</span>(</span>
-<span id="cb10-3"><a href="#cb10-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">.x =</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t),</span>
-<span id="cb10-4"><a href="#cb10-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">.f =</span> <span class="sc">~</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, .x)<span class="sc">/</span>(<span class="dv">2</span> <span class="sc">*</span> n), </span>
-<span id="cb10-5"><a href="#cb10-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.init =</span> p</span>
-<span id="cb10-6"><a href="#cb10-6" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb10-7"><a href="#cb10-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb11" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>wf_sim_tidy <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>) {</span>
+<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  purrr<span class="sc">::</span><span class="fu">accumulate</span>(</span>
+<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>    <span class="at">.x =</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t),</span>
+<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">.f =</span> <span class="sc">~</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, .x)<span class="sc">/</span>(<span class="dv">2</span> <span class="sc">*</span> n), </span>
+<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">.init =</span> p</span>
+<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb11-7"><a href="#cb11-7" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>The main advantage of writing code like this is the clearer syntax; not an increase in performance. This is another example of functional programming, and is a bit less verbose than declaring vectors and writing loops.</p>
 <p>I used to think that functions like these were inherently faster than loops too, but if you actually compare the functions, you’ll see that there isn’t much to gain in terms of performance compared with our vectorized function. In fact, there’s going to be a bit of overhang to <code>accumulate</code>, so the tidy version is a bit slower:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb11" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
-<span id="cb11-2"><a href="#cb11-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>),</span>
-<span id="cb11-3"><a href="#cb11-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
-<span id="cb11-4"><a href="#cb11-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_tidy</span>(<span class="at">t =</span> <span class="dv">5000</span>),</span>
-<span id="cb11-5"><a href="#cb11-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">check =</span> <span class="cn">FALSE</span></span>
-<span id="cb11-6"><a href="#cb11-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb12" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a>bench<span class="sc">::</span><span class="fu">mark</span>(</span>
+<span id="cb12-2"><a href="#cb12-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim</span>(<span class="at">t =</span> <span class="dv">5000</span>),</span>
+<span id="cb12-3"><a href="#cb12-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_vectorized</span>(<span class="at">t =</span> <span class="dv">5000</span>), </span>
+<span id="cb12-4"><a href="#cb12-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">wf_sim_tidy</span>(<span class="at">t =</span> <span class="dv">5000</span>),</span>
+<span id="cb12-5"><a href="#cb12-5" aria-hidden="true" tabindex="-1"></a>  <span class="at">check =</span> <span class="cn">FALSE</span></span>
+<span id="cb12-6"><a href="#cb12-6" aria-hidden="true" tabindex="-1"></a>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre data-code-line-numbers=""><code># A tibble: 3 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             29.29ms  30.63ms      28.2   107.8MB    107. 
-2 wf_sim_vectorized(t = 5000)   4.31ms   4.68ms     180.     12.2MB     45.9
-3 wf_sim_tidy(t = 5000)         9.43ms  10.04ms      91.1    12.4MB     27.7</code></pre>
+1 wf_sim(t = 5000)             29.63ms  31.58ms      27.6   107.8MB    102. 
+2 wf_sim_vectorized(t = 5000)   4.29ms   4.78ms     177.     12.2MB     45.7
+3 wf_sim_tidy(t = 5000)         9.45ms   9.98ms      90.6    12.4MB     27.6</code></pre>
 </div>
 </div>
 <p>The lesson is that loops are fine. There are some benefits to the syntax in <code>accumulate</code>, but they come from the code being more legible and easier to maintain. If you’re more worried about performance you might as well stick with the humble loop.</p>
@@ -476,7 +681,7 @@ window.Quarto = {
 <p>At this point we’ve established that initial allele frequency and population size is important to our simulations. To really hammer that idea home, I want to make a high level visualization that shows that in one big plot.</p>
 <p>Let’s try to look at a few different pairings of allele frequency and population size. I’m choosing 3 values of <code>p</code> and 3 values of <code>n</code>, with the intent to make the simulations for each possible pairing. I use <code>crossing()</code> to make those pairs:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb13" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb14" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>))</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre data-code-line-numbers=""><code># A tibble: 9 × 2
   p_init     n
@@ -494,38 +699,38 @@ window.Quarto = {
 </div>
 <p>Now let’s make 100 simulations for each of these pairs:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb15" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb15-1"><a href="#cb15-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="ot">&lt;-</span> <span class="fu">crossing</span>(<span class="at">sim =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>, <span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>)) <span class="sc">%&gt;%</span> </span>
-<span id="cb15-2"><a href="#cb15-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(sim, p_init, n) <span class="sc">%&gt;%</span> </span>
-<span id="cb15-3"><a href="#cb15-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reframe</span>(</span>
-<span id="cb15-4"><a href="#cb15-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">p =</span> <span class="fu">wf_sim_tidy</span>(<span class="at">p =</span> p_init, <span class="at">n =</span> n),</span>
-<span id="cb15-5"><a href="#cb15-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
-<span id="cb15-6"><a href="#cb15-6" aria-hidden="true" tabindex="-1"></a>  )</span>
-<span id="cb15-7"><a href="#cb15-7" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb15-8"><a href="#cb15-8" aria-hidden="true" tabindex="-1"></a>wf_sims</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb16" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb16-1"><a href="#cb16-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="ot">&lt;-</span> <span class="fu">crossing</span>(<span class="at">sim =</span> <span class="dv">1</span><span class="sc">:</span><span class="dv">100</span>, <span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb16-2"><a href="#cb16-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">group_by</span>(sim, p_init, n) <span class="sc">%&gt;%</span> </span>
+<span id="cb16-3"><a href="#cb16-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">reframe</span>(</span>
+<span id="cb16-4"><a href="#cb16-4" aria-hidden="true" tabindex="-1"></a>    <span class="at">p =</span> <span class="fu">wf_sim_tidy</span>(<span class="at">p =</span> p_init, <span class="at">n =</span> n),</span>
+<span id="cb16-5"><a href="#cb16-5" aria-hidden="true" tabindex="-1"></a>    <span class="at">t =</span> <span class="fu">seq_along</span>(p)</span>
+<span id="cb16-6"><a href="#cb16-6" aria-hidden="true" tabindex="-1"></a>  )</span>
+<span id="cb16-7"><a href="#cb16-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb16-8"><a href="#cb16-8" aria-hidden="true" tabindex="-1"></a>wf_sims</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-stdout">
 <pre data-code-line-numbers=""><code># A tibble: 45,900 × 5
      sim p_init     n     p     t
    &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
  1     1    0.1     5   0.1     1
- 2     1    0.1     5   0.1     2
- 3     1    0.1     5   0.1     3
- 4     1    0.1     5   0.2     4
- 5     1    0.1     5   0.2     5
- 6     1    0.1     5   0.3     6
- 7     1    0.1     5   0.2     7
- 8     1    0.1     5   0.3     8
- 9     1    0.1     5   0.6     9
-10     1    0.1     5   0.4    10
+ 2     1    0.1     5   0.2     2
+ 3     1    0.1     5   0.2     3
+ 4     1    0.1     5   0.1     4
+ 5     1    0.1     5   0       5
+ 6     1    0.1     5   0       6
+ 7     1    0.1     5   0       7
+ 8     1    0.1     5   0       8
+ 9     1    0.1     5   0       9
+10     1    0.1     5   0      10
 # ℹ 45,890 more rows</code></pre>
 </div>
 </div>
 <p>With a data frame like this, we can show the varying values of <code>n</code> and <code>p</code> using a faceted ggplot:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb17" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb17-1"><a href="#cb17-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="sc">%&gt;%</span> </span>
-<span id="cb17-2"><a href="#cb17-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p, <span class="at">group =</span> sim)) <span class="sc">+</span></span>
-<span id="cb17-3"><a href="#cb17-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">alpha =</span> .<span class="dv">2</span>) <span class="sc">+</span></span>
-<span id="cb17-4"><a href="#cb17-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init = "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n = "</span>, n)) <span class="sc">+</span></span>
-<span id="cb17-5"><a href="#cb17-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb18" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="sc">%&gt;%</span> </span>
+<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> t, <span class="at">y =</span> p, <span class="at">group =</span> sim)) <span class="sc">+</span></span>
+<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_line</span>(<span class="at">alpha =</span> .<span class="dv">2</span>) <span class="sc">+</span></span>
+<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init = "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n = "</span>, n)) <span class="sc">+</span></span>
+<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_y_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -541,12 +746,12 @@ window.Quarto = {
 </ul>
 <p>The frequencies at the end of the simulations get muddled out, though. Let’s look at the resulting distributions:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb18" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="sc">%&gt;%</span> </span>
-<span id="cb18-2"><a href="#cb18-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
-<span id="cb18-3"><a href="#cb18-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> p)) <span class="sc">+</span></span>
-<span id="cb18-4"><a href="#cb18-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">color =</span> <span class="st">"white"</span>, <span class="at">bins =</span> <span class="dv">20</span>) <span class="sc">+</span></span>
-<span id="cb18-5"><a href="#cb18-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init = "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n = "</span>, n)) <span class="sc">+</span></span>
-<span id="cb18-6"><a href="#cb18-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb19" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>wf_sims <span class="sc">%&gt;%</span> </span>
+<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">filter</span>(t <span class="sc">==</span> <span class="fu">max</span>(t)) <span class="sc">%&gt;%</span> </span>
+<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">ggplot</span>(<span class="fu">aes</span>(<span class="at">x =</span> p)) <span class="sc">+</span></span>
+<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_histogram</span>(<span class="at">color =</span> <span class="st">"white"</span>, <span class="at">bins =</span> <span class="dv">20</span>) <span class="sc">+</span></span>
+<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>  <span class="fu">facet_grid</span>(<span class="fu">paste</span>(<span class="st">"p_init = "</span>, p_init) <span class="sc">~</span> <span class="fu">paste</span>(<span class="st">"n = "</span>, n)) <span class="sc">+</span></span>
+<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  <span class="fu">scale_x_continuous</span>(<span class="at">labels =</span> scales<span class="sc">::</span>percent) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -557,18 +762,18 @@ window.Quarto = {
 </div>
 <p>That gives me the distributions, but the plot I have in my head shows the combined line graphs with the resulting distributions that came with the <code>draw_sims</code> function, as I found that helped me understand what is going on. It’s hard to show that with regular ggplot facets, so I’m resorting to draw 9 plots using <code>draw_sims</code>, and gathering them in a list:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb19" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb19-1"><a href="#cb19-1" aria-hidden="true" tabindex="-1"></a>wf_plots <span class="ot">&lt;-</span> <span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>)) <span class="sc">%&gt;%</span> </span>
-<span id="cb19-2"><a href="#cb19-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> </span>
-<span id="cb19-3"><a href="#cb19-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">plots =</span> <span class="fu">list</span>(</span>
-<span id="cb19-4"><a href="#cb19-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_tidy, <span class="at">p =</span> p_init, <span class="at">n =</span> n)</span>
-<span id="cb19-5"><a href="#cb19-5" aria-hidden="true" tabindex="-1"></a>    )</span>
-<span id="cb19-6"><a href="#cb19-6" aria-hidden="true" tabindex="-1"></a>  )  <span class="sc">%&gt;%</span> </span>
-<span id="cb19-7"><a href="#cb19-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(plots) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb20" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a>wf_plots <span class="ot">&lt;-</span> <span class="fu">crossing</span>(<span class="at">p_init =</span> <span class="fu">c</span>(.<span class="dv">1</span>, .<span class="dv">5</span>, .<span class="dv">9</span>), <span class="at">n =</span> <span class="fu">c</span>(<span class="dv">5</span>, <span class="dv">50</span>, <span class="dv">500</span>)) <span class="sc">%&gt;%</span> </span>
+<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">rowwise</span>() <span class="sc">%&gt;%</span> </span>
+<span id="cb20-3"><a href="#cb20-3" aria-hidden="true" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">plots =</span> <span class="fu">list</span>(</span>
+<span id="cb20-4"><a href="#cb20-4" aria-hidden="true" tabindex="-1"></a>    <span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_tidy, <span class="at">p =</span> p_init, <span class="at">n =</span> n)</span>
+<span id="cb20-5"><a href="#cb20-5" aria-hidden="true" tabindex="-1"></a>    )</span>
+<span id="cb20-6"><a href="#cb20-6" aria-hidden="true" tabindex="-1"></a>  )  <span class="sc">%&gt;%</span> </span>
+<span id="cb20-7"><a href="#cb20-7" aria-hidden="true" tabindex="-1"></a>  <span class="fu">pull</span>(plots) </span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>When I have this list, I can wrap them up using the <code>wrap_plots</code> function of <code>patchwork</code>:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb20" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="fu">wrap_plots</span>(wf_plots) <span class="sc">&amp;</span> </span>
-<span id="cb20-2"><a href="#cb20-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_grey</span>(<span class="at">base_size =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb21" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a><span class="fu">wrap_plots</span>(wf_plots) <span class="sc">&amp;</span> </span>
+<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">theme_grey</span>(<span class="at">base_size =</span> <span class="dv">8</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -588,21 +793,21 @@ window.Quarto = {
 </ul>
 <p>This is relatively simple to include in the function:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb21" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb21-1"><a href="#cb21-1" aria-hidden="true" tabindex="-1"></a>wf_sim_mutation <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">mut_from =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> <span class="dv">0</span>){</span>
-<span id="cb21-2"><a href="#cb21-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
-<span id="cb21-3"><a href="#cb21-3" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
-<span id="cb21-4"><a href="#cb21-4" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb21-5"><a href="#cb21-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
-<span id="cb21-6"><a href="#cb21-6" aria-hidden="true" tabindex="-1"></a>    p_mut <span class="ot">&lt;-</span> (<span class="dv">1</span> <span class="sc">-</span> mut_from) <span class="sc">*</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">+</span> mut_to <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>])</span>
-<span id="cb21-7"><a href="#cb21-7" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, p_mut) <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> n)</span>
-<span id="cb21-8"><a href="#cb21-8" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb21-9"><a href="#cb21-9" aria-hidden="true" tabindex="-1"></a>  freqs</span>
-<span id="cb21-10"><a href="#cb21-10" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb22" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a>wf_sim_mutation <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">mut_from =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> <span class="dv">0</span>){</span>
+<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
+<span id="cb22-3"><a href="#cb22-3" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
+<span id="cb22-4"><a href="#cb22-4" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb22-5"><a href="#cb22-5" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb22-6"><a href="#cb22-6" aria-hidden="true" tabindex="-1"></a>    p_mut <span class="ot">&lt;-</span> (<span class="dv">1</span> <span class="sc">-</span> mut_from) <span class="sc">*</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">+</span> mut_to <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>])</span>
+<span id="cb22-7"><a href="#cb22-7" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, p_mut) <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> n)</span>
+<span id="cb22-8"><a href="#cb22-8" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb22-9"><a href="#cb22-9" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb22-10"><a href="#cb22-10" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Say you model a population where a specific allele isn’t present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb22" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb22-1"><a href="#cb22-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">/</span> </span>
-<span id="cb22-2"><a href="#cb22-2" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> .<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">/</span> </span>
+<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> .<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -614,8 +819,8 @@ window.Quarto = {
 <p>Another thing that fascinates me is the fact that a two-allele system like this has something called a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:</p>
 <p><span class="math display">\[p_{\text{eq}} = \frac{\mu_{\text{to}}}{\mu_{\text{from}} + \mu_{\text{to}}}\]</span></p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
-<span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb24" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
+<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -626,8 +831,8 @@ window.Quarto = {
 </div>
 <p>That equilibrium is reached, even if the allele is fixed from the start:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb24" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">1</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
-<span id="cb24-2"><a href="#cb24-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb25" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">1</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
+<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a>  <span class="fu">geom_abline</span>(<span class="at">intercept =</span> (.<span class="dv">2</span>) <span class="sc">/</span> (.<span class="dv">1</span> <span class="sc">+</span> .<span class="dv">2</span>), <span class="at">slope =</span> <span class="dv">0</span>, <span class="at">color =</span> <span class="st">"orange"</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">
@@ -643,31 +848,31 @@ window.Quarto = {
 <p><span class="math display">\[p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}\]</span></p>
 <p>Here: - <span class="math inline">\(p\)</span> is the frequency of allele <span class="math inline">\(A\)</span>, - <span class="math inline">\(q = 1 - p\)</span>, which is the frequency of allele <span class="math inline">\(a\)</span>, - <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb25" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb25-1"><a href="#cb25-1" aria-hidden="true" tabindex="-1"></a>wf_sim_selection <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">fit_AA =</span> <span class="dv">1</span>, <span class="at">fit_Aa =</span> <span class="dv">1</span>, <span class="at">fit_aa =</span> <span class="dv">1</span>) {</span>
-<span id="cb25-2"><a href="#cb25-2" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-3"><a href="#cb25-3" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
-<span id="cb25-4"><a href="#cb25-4" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
-<span id="cb25-5"><a href="#cb25-5" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-6"><a href="#cb25-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
-<span id="cb25-7"><a href="#cb25-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate average fitness of the population</span></span>
-<span id="cb25-8"><a href="#cb25-8" aria-hidden="true" tabindex="-1"></a>    fit_avg <span class="ot">&lt;-</span></span>
-<span id="cb25-9"><a href="#cb25-9" aria-hidden="true" tabindex="-1"></a>      freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_AA <span class="sc">+</span> </span>
-<span id="cb25-10"><a href="#cb25-10" aria-hidden="true" tabindex="-1"></a>      (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_aa <span class="sc">+</span></span>
-<span id="cb25-11"><a href="#cb25-11" aria-hidden="true" tabindex="-1"></a>      <span class="dv">2</span> <span class="sc">*</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa</span>
-<span id="cb25-12"><a href="#cb25-12" aria-hidden="true" tabindex="-1"></a></span>
-<span id="cb25-13"><a href="#cb25-13" aria-hidden="true" tabindex="-1"></a>    p_sel <span class="ot">&lt;-</span> </span>
-<span id="cb25-14"><a href="#cb25-14" aria-hidden="true" tabindex="-1"></a>      (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> fit_AA <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa)) <span class="sc">/</span> </span>
-<span id="cb25-15"><a href="#cb25-15" aria-hidden="true" tabindex="-1"></a>      (fit_avg)</span>
-<span id="cb25-16"><a href="#cb25-16" aria-hidden="true" tabindex="-1"></a>        </span>
-<span id="cb25-17"><a href="#cb25-17" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, p_sel) <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> n)</span>
-<span id="cb25-18"><a href="#cb25-18" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb25-19"><a href="#cb25-19" aria-hidden="true" tabindex="-1"></a>  </span>
-<span id="cb25-20"><a href="#cb25-20" aria-hidden="true" tabindex="-1"></a>  freqs</span>
-<span id="cb25-21"><a href="#cb25-21" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb26" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>wf_sim_selection <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">fit_AA =</span> <span class="dv">1</span>, <span class="at">fit_Aa =</span> <span class="dv">1</span>, <span class="at">fit_aa =</span> <span class="dv">1</span>) {</span>
+<span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-3"><a href="#cb26-3" aria-hidden="true" tabindex="-1"></a>  freqs <span class="ot">&lt;-</span> <span class="fu">vector</span>(<span class="at">mode =</span> <span class="st">"numeric"</span>, <span class="at">length =</span> t)</span>
+<span id="cb26-4"><a href="#cb26-4" aria-hidden="true" tabindex="-1"></a>  freqs[<span class="dv">1</span>] <span class="ot">&lt;-</span> p</span>
+<span id="cb26-5"><a href="#cb26-5" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-6"><a href="#cb26-6" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span>(i <span class="cf">in</span> <span class="dv">2</span><span class="sc">:</span>t) {</span>
+<span id="cb26-7"><a href="#cb26-7" aria-hidden="true" tabindex="-1"></a>    <span class="co"># Calculate average fitness of the population</span></span>
+<span id="cb26-8"><a href="#cb26-8" aria-hidden="true" tabindex="-1"></a>    fit_avg <span class="ot">&lt;-</span></span>
+<span id="cb26-9"><a href="#cb26-9" aria-hidden="true" tabindex="-1"></a>      freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_AA <span class="sc">+</span> </span>
+<span id="cb26-10"><a href="#cb26-10" aria-hidden="true" tabindex="-1"></a>      (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">^</span> <span class="dv">2</span> <span class="sc">*</span> fit_aa <span class="sc">+</span></span>
+<span id="cb26-11"><a href="#cb26-11" aria-hidden="true" tabindex="-1"></a>      <span class="dv">2</span> <span class="sc">*</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa</span>
+<span id="cb26-12"><a href="#cb26-12" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb26-13"><a href="#cb26-13" aria-hidden="true" tabindex="-1"></a>    p_sel <span class="ot">&lt;-</span> </span>
+<span id="cb26-14"><a href="#cb26-14" aria-hidden="true" tabindex="-1"></a>      (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> (freqs[i <span class="sc">-</span> <span class="dv">1</span>] <span class="sc">*</span> fit_AA <span class="sc">+</span> (<span class="dv">1</span> <span class="sc">-</span> freqs[i <span class="sc">-</span> <span class="dv">1</span>]) <span class="sc">*</span> fit_Aa)) <span class="sc">/</span> </span>
+<span id="cb26-15"><a href="#cb26-15" aria-hidden="true" tabindex="-1"></a>      (fit_avg)</span>
+<span id="cb26-16"><a href="#cb26-16" aria-hidden="true" tabindex="-1"></a>        </span>
+<span id="cb26-17"><a href="#cb26-17" aria-hidden="true" tabindex="-1"></a>    freqs[i] <span class="ot">&lt;-</span> <span class="fu">rbinom</span>(<span class="dv">1</span>, <span class="dv">2</span> <span class="sc">*</span> n, p_sel) <span class="sc">/</span> (<span class="dv">2</span> <span class="sc">*</span> n)</span>
+<span id="cb26-18"><a href="#cb26-18" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb26-19"><a href="#cb26-19" aria-hidden="true" tabindex="-1"></a>  </span>
+<span id="cb26-20"><a href="#cb26-20" aria-hidden="true" tabindex="-1"></a>  freqs</span>
+<span id="cb26-21"><a href="#cb26-21" aria-hidden="true" tabindex="-1"></a>}</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 </div>
 <p>Say that the <span class="math inline">\(aa\)</span> genotype only has a relative fitness at half of the <span class="math inline">\(AA\)</span> and <span class="math inline">\(Aa\)</span> genotypes. Even if the <span class="math inline">\(a\)</span> allele is the most prominent one at the start of simulation, most simulations will end in the <span class="math inline">\(A\)</span> allele being fixed in these conditions.</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb26" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_selection, <span class="at">p =</span> <span class="fl">0.01</span>, <span class="at">fit_aa =</span> .<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code" id="cb27" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb27-1"><a href="#cb27-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_selection, <span class="at">p =</span> <span class="fl">0.01</span>, <span class="at">fit_aa =</span> .<span class="dv">5</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
 <figure class="figure">

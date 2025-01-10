@@ -1,12 +1,13 @@
 ---
 title: "Wright-Fisher simulations in R"
 author: "Emil Malta"
-date: "2025-01-06"
+date: "2025-01-10"
 image: "cover.jpg"
 toc: true
 description: "How do random changes shape the genetic makeup of a population? Explore the Wright-Fisher model to understand genetic drift, visualize its effects, how to implement it in R."
 filters:
   - line-highlight
+  - shinylive
 execute:
   warning: false
 bluesky-comments:
@@ -17,7 +18,7 @@ bluesky-comments:
   filter-empty-replies: true
   n-show-init: 3
   n-show-more: 2
-draft: true
+draft: false
 ---
 
 This post is for R users (like me), who are interested in evolutionary biology, population genetics, or simulation studies. I'll go through a few simulation implementations of genetic drift in R, visualise the output, and interpret their result. At the very end, I'll build a simple shiny app to make it easier to mess with the parameters of the model.
@@ -40,6 +41,208 @@ A common model used to simulate this is called the Wright-Fisher model, which as
 - The change in allele frequencies is a stochastic process.
 
 Allele frequency of each generation comes from sampling a binomial distribution based on the frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).
+
+## Shiny app (tl;dr)
+
+This post gets into the weeds into how this stuff is implemented. If your main aim is just to understand the model, I'd suggest messing around with this little app:
+
+```{shinylive-r}
+#| standalone: true
+#| viewerHeight: 840
+
+library(patchwork)
+library(ggplot2)
+library(scales)
+library(tibble)
+library(shiny)
+library(dplyr)
+
+helper <- function(n = 250, p = .5, t = 100L, mut_to = 0, mut_from = 0,
+                   fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+  purrr::accumulate(
+    .x = vector("numeric", t - 1),
+    .f = ~ {
+      # Calculate average fitness of the population
+      fit_avg = .x ^ 2 * fit_AA + 2 * .x * (1 - .x) * fit_Aa + (1 - .x) ^ 2 * fit_aa
+
+      # Calculate frequency after selection and mutation
+      p_sel = (.x * (.x * fit_AA + (1 - .x) * fit_Aa)) / fit_avg
+      p_sel_mut = (1 - mut_from ) * p_sel + (1 - p_sel) * mut_to
+
+    },
+    .init = p
+  )
+}
+
+wf_sim <- function(n = 250, p = .5, t = 100L, mut_to = 0, mut_from = 0,
+                   fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
+
+  # Simulate allele frequency changes using purrr::accumulate
+  allele_frequencies <- purrr::accumulate(
+    .x = vector("numeric", t - 1),
+    .f = ~ {
+      # Calculate average fitness of the population
+      fit_avg = .x ^ 2 * fit_AA + 2 * .x * (1 - .x) * fit_Aa + (1 - .x) ^ 2 * fit_aa
+
+      # Calculate frequency after selection and mutation
+      p_sel = (.x * (.x * fit_AA + (1 - .x) * fit_Aa)) / fit_avg
+      p_sel_mut = (1 - mut_from ) * p_sel + (1 - p_sel) * mut_to
+
+      # Generate next generation allele frequency
+      rbinom(1, 2 * n, p_sel_mut) / (2 * n)
+    },
+    .init = p
+  )
+
+  return(allele_frequencies)
+}
+
+wf_plot <- function(..., num_sims = 100L, show_hist = FALSE) {
+
+  if(num_sims < 1) stop("Invalid value of 'num_sims'")
+
+  plot_df <- reframe(
+    group_by(
+      tibble(sim = 1:num_sims), sim),
+    p = wf_sim(...), t = seq_along(p)
+  )
+
+  a <- seq_along(helper(...))
+  b <- helper(...)
+
+  p1 <- ggplot2::ggplot(plot_df, ggplot2::aes(x = t, y = p, group = sim)) +
+    ggplot2::geom_line(linewidth = .8, alpha = .5) +
+    geom_line(
+      data = tibble(a = a, b = b), aes(x = a, y = b, group = NULL),
+      linewidth = 1, color = "orange"
+    ) +
+    ggplot2::scale_y_continuous(labels = scales::percent, limits = c(0, 1)) +
+    ggplot2::labs(
+      title = "Wright-Fisher simulation of genetic drift",
+      subtitle = "Allele freq. (A)",
+      x = "Generation", y = "Allele freq."
+    )
+
+  if(show_hist) {
+  p2 <- ggplot2::ggplot(
+    data = dplyr::slice(dplyr::group_by(plot_df, sim), dplyr::n()),
+    aes(p)) +
+    ggplot2::geom_histogram(color = "white", binwidth = .025, boundary = 0) +
+    ggplot2::scale_x_continuous(limits = c(0, 1), oob = scales::squish) +
+    ggplot2::coord_flip() +
+    ggplot2::theme(axis.title.y = ggplot2::element_blank()) +
+    ggplot2::labs(
+      subtitle = "Freq(A) distribution",
+      y = "Count"
+    ) +
+    ggplot2::theme(
+      axis.text.y = ggplot2::element_blank(),
+      panel.grid.minor.x = ggplot2::element_blank()
+    )
+
+    return((p1 + p2) + patchwork::plot_layout(widths = c(.8, .2)))
+  }
+
+  p1
+
+}
+
+ui <- bslib::page_sidebar(
+    title = "Simulate Genetic Drift",
+    sidebar = bslib::sidebar(
+      shiny::sliderInput("p", label = "Initial allele freq. (p)", min = 0, max = 1, value = .5, ticks = FALSE),
+      shiny::sliderInput("n", label = "Population size (n)", min = 1, max = 500, value = 250, ticks = FALSE),
+      shiny::sliderInput("t", label = "Number of generations", min = 1, max = 200, value = 100, ticks = FALSE),
+      shiny::sliderInput("mut_to", label = "Mutation rate (a -> A)", min = 0, max = 1, value = 0, ticks = FALSE),
+      shiny::sliderInput("mut_from", label = "Mutation rate (A -> a)", min = 0, max = 1, value = 0, ticks = FALSE),
+      shiny::div(
+        style = "display: flex; flex-direction: row;",
+        shiny::numericInput("fit_AA", "Fit AA:", value = 1, step = .1),
+        shiny::numericInput("fit_Aa", "Fit Aa:", value = 1, step = .1),
+        shiny::numericInput("fit_aa", "Fit aa:", value = 1, step = .1)
+      ),
+      shiny::numericInput("num_sims", label = "Number of simulations", value = 100, min = 1),
+      shiny::radioButtons("show_hist", label = "Histogram", choices = c("Show", "Hide"), selected = "Hide"),
+      shiny::actionButton("reset", label = "Reset")
+    ),
+    bslib::card(shiny::plotOutput("simplot"), width = "80%")
+)
+
+server <- function(input, output, session) {
+  
+  input_values <- shiny::reactiveValues(
+    p = 0.5,
+    n = 250,
+    t = 100,
+    mut_from = 0,
+    mut_to = 0,
+    fit_AA = 1,
+    fit_Aa = 1,
+    fit_aa = 1,
+    num_sims = 100,
+    show_hist = "Hide"
+  )
+  
+  shiny::observe({
+    input_values$p <- input$p
+    input_values$n <- input$n
+    input_values$t <- input$t
+    input_values$mut_from <- input$mut_from
+    input_values$mut_to <- input$mut_to
+    input_values$fit_AA <- input$fit_AA
+    input_values$fit_Aa <- input$fit_Aa
+    input_values$fit_aa <- input$fit_aa
+    input_values$num_sims <- input$num_sims
+    input_values$show_hist <- input$show_hist
+  })
+  
+  output$simplot <- shiny::renderPlot({
+    wf_plot(
+      n = input_values$n,
+      p = input_values$p,
+      t = input_values$t,
+      mut_from = input_values$mut_from,
+      mut_to = input_values$mut_to,
+      fit_AA = input_values$fit_AA,
+      fit_Aa = input_values$fit_Aa,
+      fit_aa = input_values$fit_aa,
+      num_sims = input_values$num_sims,
+      show_hist = input_values$show_hist == "Show"
+    )
+  })
+  
+  shiny::observeEvent(input$reset, {
+    # Reset input_values to their default values
+    input_values$p <- 0.5
+    input_values$n <- 250
+    input_values$t <- 100
+    input_values$mut_from <- 0
+    input_values$mut_to <- 0
+    input_values$fit_AA <- 1
+    input_values$fit_Aa <- 1
+    input_values$fit_aa <- 1
+  })
+  
+  shiny::observeEvent(input$reset, {
+    # Reset all input values to their default values
+    shiny::updateSliderInput(session, "p", value = 0.5)
+    shiny::updateSliderInput(session, "n", value = 250)
+    shiny::updateSliderInput(session, "t", value = 100)
+    shiny::updateSliderInput(session, "mut_from", value = 0)
+    shiny::updateSliderInput(session, "mut_to", value = 0)
+    shiny::updateNumericInput(session, "fit_AA", value = 1)
+    shiny::updateNumericInput(session, "fit_Aa", value = 1)
+    shiny::updateNumericInput(session, "fit_aa", value = 1)
+  })
+  
+}
+shiny::shinyApp(ui, server)
+
+```
+
+<br>
+
+(I'm not 100% there yet - the histograms break the app, but I am on it!)
 
 ## Visualising drift
 
