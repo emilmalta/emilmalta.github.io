@@ -82,6 +82,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/run-python-blocks.js" type="module"></script>
 <link href="../../site_libs/quarto-contrib/shinylive-0.9.1/shinylive/shinylive.css" rel="stylesheet">
 <link href="../../site_libs/quarto-contrib/shinylive-quarto-css/shinylive-quarto.css" rel="stylesheet">
+<script src="../../site_libs/quarto-contrib/bluesky-comments-1.0.0/bluesky-comments.js"></script>
+<link href="../../site_libs/quarto-contrib/bluesky-comments-1.0.0/styles.css" rel="stylesheet">
 <script src="../../site_libs/quarto-contrib/iconify-2.1.0/iconify-icon.min.js"></script>
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
@@ -475,7 +477,7 @@ server &lt;- function(input, output, session) {
 shiny::shinyApp(ui, server)
 </code></pre>
 <p><br></p>
-<p>(I’m not 100% there yet - the histograms break the app, but I am on it!)</p>
+<p>I’m finding that some browsers struggle to show all of the apps I’m making - this one struggles with showing histograms sometimes. If that’s happening to you, try opening the site in Google Chrome.</p>
 </section>
 <section id="visualising-drift" class="level2">
 <h2 class="anchored" data-anchor-id="visualising-drift">Visualising drift</h2>
@@ -604,8 +606,8 @@ shiny::shinyApp(ui, server)
 <pre data-code-line-numbers=""><code># A tibble: 2 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             28.57ms  31.43ms      31.2   107.8MB     85.7
-2 wf_sim_vectorized(t = 5000)   4.56ms   4.98ms     157.     12.2MB     43.6</code></pre>
+1 wf_sim(t = 5000)              28.8ms  31.59ms      30.2   107.8MB     83.1
+2 wf_sim_vectorized(t = 5000)   4.08ms   4.83ms     158.     12.2MB     45.4</code></pre>
 </div>
 </div>
 <p>That looks about right. My hunch is that the time it takes for the first approach to run increases by <span class="math inline">\(O(t^2)\)</span> as the number of generations increases, while the vectorized function should run in linear time <span class="math inline">\(O(t)\)</span>.</p>
@@ -660,9 +662,9 @@ shiny::shinyApp(ui, server)
 <pre data-code-line-numbers=""><code># A tibble: 3 × 6
   expression                       min   median `itr/sec` mem_alloc `gc/sec`
   &lt;bch:expr&gt;                  &lt;bch:tm&gt; &lt;bch:tm&gt;     &lt;dbl&gt; &lt;bch:byt&gt;    &lt;dbl&gt;
-1 wf_sim(t = 5000)             30.22ms  32.52ms      27.4   107.8MB    103. 
-2 wf_sim_vectorized(t = 5000)   4.59ms   4.83ms     173.     12.2MB     43.7
-3 wf_sim_tidy(t = 5000)         9.38ms  10.23ms      89.7    12.4MB     27.9</code></pre>
+1 wf_sim(t = 5000)              31.3ms  34.81ms      25.4   107.8MB     94.3
+2 wf_sim_vectorized(t = 5000)   4.21ms   4.79ms     176.     12.2MB     44.0
+3 wf_sim_tidy(t = 5000)          9.8ms  10.56ms      86.2    12.4MB     25.5</code></pre>
 </div>
 </div>
 <p>The lesson here is that loops are fine. There are some benefits to the syntax in <code>accumulate</code>, but they come from the code being more legible and easier to maintain. These are completely valid reasons to prefer this implementation, but if you’re more worried about performance, you might as well stick with the humble loop.</p>
@@ -714,15 +716,15 @@ shiny::shinyApp(ui, server)
      sim p_init     n     p     t
    &lt;int&gt;  &lt;dbl&gt; &lt;dbl&gt; &lt;dbl&gt; &lt;int&gt;
  1     1    0.1     5   0.1     1
- 2     1    0.1     5   0.1     2
- 3     1    0.1     5   0       3
- 4     1    0.1     5   0       4
- 5     1    0.1     5   0       5
- 6     1    0.1     5   0       6
- 7     1    0.1     5   0       7
- 8     1    0.1     5   0       8
- 9     1    0.1     5   0       9
-10     1    0.1     5   0      10
+ 2     1    0.1     5   0.4     2
+ 3     1    0.1     5   0.3     3
+ 4     1    0.1     5   0.3     4
+ 5     1    0.1     5   0.3     5
+ 6     1    0.1     5   0.4     6
+ 7     1    0.1     5   0.2     7
+ 8     1    0.1     5   0.1     8
+ 9     1    0.1     5   0.3     9
+10     1    0.1     5   0.5    10
 # ℹ 45,890 more rows</code></pre>
 </div>
 </div>
@@ -812,7 +814,7 @@ shiny::shinyApp(ui, server)
 </div>
 <p>Say you model a population where a specific allele isn’t present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:</p>
 <div class="cell">
-<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">|</span> </span>
+<div class="sourceCode cell-code" id="cb23" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">p =</span> <span class="dv">0</span>) <span class="sc">/</span></span>
 <span id="cb23-2"><a href="#cb23-2" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_to =</span> .<span class="dv">10</span>)</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output-display">
 <div>
@@ -822,7 +824,7 @@ shiny::shinyApp(ui, server)
 </div>
 </div>
 </div>
-<p>Another thing that fascinates me is the fact that a two-allele system like this has a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:</p>
+<p>Another thing that fascinates me is the fact that a two-allele system like this has a mutation equilibrium, where the rates of <code>mut_to</code> and <code>mut_from</code> are in equilibrium. This means stable allele frequencies over time, regardless of initial allele frequency, which can be predicted with this formula:</p>
 <p><span class="math display">\[p_{\text{eq}} = \frac{\mu_{\text{ to}}}{\mu_{\text{ from}} + \mu_{\text{ to}}}\]</span></p>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb24" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb24-1"><a href="#cb24-1" aria-hidden="true" tabindex="-1"></a><span class="fu">draw_sims</span>(<span class="at">sim_function =</span> wf_sim_mutation, <span class="at">p =</span> <span class="dv">0</span>, <span class="at">mut_from =</span> .<span class="dv">1</span>, <span class="at">mut_to =</span> .<span class="dv">2</span>) <span class="sc">&amp;</span> </span>
@@ -852,7 +854,12 @@ shiny::shinyApp(ui, server)
 <h3 class="anchored" data-anchor-id="selection">Selection</h3>
 <p>At this point, I might as well mention selection. Selection introduces a bias in the allele frequencies being drawn at each generation, by favoring certain alleles, or genotypes. In our diploid two-allele system, where alleles are called <span class="math inline">\(A\)</span> and <span class="math inline">\(a\)</span>, the relative fitness of each genotype can be denoted as <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span>. The probability of sampling allele <span class="math inline">\(A\)</span> every generation will be adjusted as follows:</p>
 <p><span class="math display">\[p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}\]</span></p>
-<p>Here: - <em>p</em> is the frequency of allele <em>A</em>, - <em>q = 1 - p</em>, which is the frequency of allele <em>a</em>, - <span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p>
+<p>Here:</p>
+<ul>
+<li><p><em>p</em> is the frequency of allele <em>A</em></p></li>
+<li><p><em>q = 1 - p</em>, which is the frequency of allele <em>a</em></p></li>
+<li><p><span class="math inline">\(w_{AA}\)</span>, <span class="math inline">\(w_{Aa}\)</span>, and <span class="math inline">\(w_{aa}\)</span> are the fitnesses of the <span class="math inline">\(AA\)</span>, <span class="math inline">\(Aa\)</span>, and <span class="math inline">\(aa\)</span> genotypes, respectively.</p></li>
+</ul>
 <div class="cell">
 <div class="sourceCode cell-code" id="cb26" data-source-line-numbers="nil" data-code-line-numbers="nil"><pre class="sourceCode r code-with-copy"><code class="sourceCode r"><span id="cb26-1"><a href="#cb26-1" aria-hidden="true" tabindex="-1"></a>wf_sim_selection <span class="ot">&lt;-</span> <span class="cf">function</span>(<span class="at">p =</span> .<span class="dv">5</span>, <span class="at">n =</span> <span class="dv">50</span>, <span class="at">t =</span> <span class="dv">50</span>, <span class="at">fit_AA =</span> <span class="dv">1</span>, <span class="at">fit_Aa =</span> <span class="dv">1</span>, <span class="at">fit_aa =</span> <span class="dv">1</span>) {</span>
 <span id="cb26-2"><a href="#cb26-2" aria-hidden="true" tabindex="-1"></a></span>
@@ -899,6 +906,8 @@ shiny::shinyApp(ui, server)
 <li><p>Implementation matters for efficiency. Some of the simulation functions implemented here produced the exact same output, but had vastly different run times.</p></li>
 </ul>
 <p>I think the most powerful part of this whole thing is the inclusion of the shinylive app. Tinkering with tools like this is probably the most effective way of gaining intuition for these kinds of models - that along with effective visualization.</p>
+    <bluesky-comments post="at://did:plc:pk6346ydqvifmlgimbez4dsx/app.bsky.feed.post/3lfdzaltnt22u" filter-config="{&quot;filterEmptyReplies&quot;:true,&quot;mutePatterns&quot;:[&quot;📌&quot;],&quot;muteUsers&quot;:[&quot;did:plc:1234abcd&quot;]}" n-show-init="3" n-show-more="2"></bluesky-comments>
+  
 
 
 </section>

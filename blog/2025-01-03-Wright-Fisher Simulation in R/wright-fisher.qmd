@@ -25,7 +25,6 @@ This post is for R users (like me), who are interested in evolutionary biology, 
 
 I hope this helps you build some intuition for Wright-Fisher simulation. Much of what I'm about to show is the mental gymnastics I had to perform to *get* this concept.
 
-
 ## The Wright Fisher model
 
 Much of my time as an undergraduate was spent obsessing over allele frequencies. I was/am specifically interested in how certain copies of genes become prominent in a population, or disappear entirely. While it's true that much of it can be explained by things like natural selection or de novo mutations, allele frequencies in a population just generally change over time by chance alone.
@@ -34,11 +33,11 @@ This is a process is called genetic drift, and is especially noticeable in small
 
 A common model used to simulate this is called the Wright-Fisher model, which assumes that:
 
-- The size of the population is constant over time.
+-   The size of the population is constant over time.
 
-- The generations don't overlap.
+-   The generations don't overlap.
 
-- The change in allele frequencies is a stochastic process.
+-   The change in allele frequencies is a stochastic process.
 
 Allele frequency of each generation comes from sampling a binomial distribution based on the frequency of previous generation. Repeat this enough times, and the allele will eventually be be fixed or lost (all individuals modeled have the allele, or the allele is lost entirely).
 
@@ -242,11 +241,11 @@ shiny::shinyApp(ui, server)
 
 <br>
 
-(I'm not 100% there yet - the histograms break the app, but I am on it!)
+I'm finding that some browsers struggle to show all of the apps I'm making - this one struggles with showing histograms sometimes. If that's happening to you, try opening the site in Google Chrome.
 
 ## Visualising drift
 
-The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I'll get into why a bit later in the post: 
+The following code shows my first attempt at implementing the process. This approach is pretty inefficient, and I'll get into why a bit later in the post:
 
 ```{r}
 wf_sim <- function(p = .5, n = 50, t = 50) {
@@ -341,7 +340,7 @@ wf_sim <- function(p = .5, n = 50, t = 50) {
 }
 ```
 
-In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy *all* of the values from the previous step in the loop, and this repeats when you get to the next step. 
+In each iteration of the loop, R creates a new vector to handle the additional value being appended. This new vector has to copy *all* of the values from the previous step in the loop, and this repeats when you get to the next step.
 
 ### Pre-allocating vectors
 
@@ -425,10 +424,10 @@ The lesson here is that loops are fine. There are some benefits to the syntax in
 
 The reason I'm writing this code is to gain a better understanding of the factors contributing to genetic drift. That means looking at the distribution of allele frequencies at the end of simulation under varying conditions, namely:
 
-- Population size
-- Initial allele frequency
-- Presence of mutation rates
-- Presence of natural selection
+-   Population size
+-   Initial allele frequency
+-   Presence of mutation rates
+-   Presence of natural selection
 
 ### Population size
 
@@ -464,11 +463,11 @@ wf_sims %>%
   scale_y_continuous(labels = scales::percent) 
 ```
 
-It's a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to help you build some intuition of the trajectories for each condition. 
+It's a bit overwhelming to look at all of this, but if you spend some time thinking about the factors for each facet, I hope to help you build some intuition of the trajectories for each condition.
 
-- Top left plot shows a tiny population, where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency. 
+-   Top left plot shows a tiny population, where the initial frequency is very low. As the frequency fluctuates so much with the small population size, many of the simulations end in fixation of the allele, even with low intial frequency.
 
-- Bottom right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.
+-   Bottom right plot shows a large population with a high initial frequency. Here the trajectories are more stable, and very few simulation (if any) end in loss of the allele.
 
 The frequencies at the end of the simulations get muddled out, though. Let's look at the resulting distributions:
 
@@ -510,9 +509,9 @@ This has roughly the same layout as the previous faceted graphs, except I get to
 
 Aside from genetic drift, the frequencies can also be impacted by the introduction of new alleles that happen by mutation. In a two-allele system, we can model this with 2 rates:
 
-- `mut_from`: Probability that that the allele *A* changes from its current state into another allele *a*.
+-   `mut_from`: Probability that that the allele *A* changes from its current state into another allele *a*.
 
-- `mut_to`: The probability that the gene mutates from allele *a* into *A*.
+-   `mut_to`: The probability that the gene mutates from allele *a* into *A*.
 
 This is relatively simple to include in the function:
 
@@ -532,11 +531,11 @@ wf_sim_mutation <- function(p = .5, n = 50, t = 50, mut_from = 0, mut_to = 0){
 Say you model a population where a specific allele isn't present at all. Because the allele is lost from the beginning, it will stay lost after 50 generations. But if you introduce a chance every generation, of say 10%, that the allele will appear by random mutation, that might be enough for the allele to fix in population for pretty much all simulations:
 
 ```{r}
-draw_sims(p = 0) | 
+draw_sims(p = 0) /
 draw_sims(sim_function = wf_sim_mutation, p = 0, mut_to = .10)
 ```
 
-Another thing that fascinates me is the fact that a two-allele system like this has a mutation equilibrium, where the rates of `mut_to` and `mut_from` are equal. This leads to stable allele frequencies over time, regardless of initiall allele frequency, which can be predicted with this formula:
+Another thing that fascinates me is the fact that a two-allele system like this has a mutation equilibrium, where the rates of `mut_to` and `mut_from` are in equilibrium. This means stable allele frequencies over time, regardless of initial allele frequency, which can be predicted with this formula:
 
 $$p_{\text{eq}} = \frac{\mu_{\text{ to}}}{\mu_{\text{ from}} + \mu_{\text{ to}}}$$
 
@@ -559,9 +558,12 @@ At this point, I might as well mention selection. Selection introduces a bias in
 $$p_{\text{sel}} = \frac{p^2 \cdot w_{AA} + p \cdot q \cdot w_{Aa}}{p^2 \cdot w_{AA} + 2 \cdot p \cdot q \cdot w_{Aa} + q^2 \cdot w_{aa}}$$
 
 Here:
-- *p* is the frequency of allele *A*,
-- *q = 1 - p*, which is the frequency of allele *a*,
-- $w_{AA}$, $w_{Aa}$, and $w_{aa}$ are the fitnesses of the $AA$, $Aa$, and $aa$ genotypes, respectively.
+
+-   *p* is the frequency of allele *A*
+
+-   *q = 1 - p*, which is the frequency of allele *a*
+
+-   $w_{AA}$, $w_{Aa}$, and $w_{aa}$ are the fitnesses of the $AA$, $Aa$, and $aa$ genotypes, respectively.
 
 ```{r}
 wf_sim_selection <- function(p = .5, n = 50, t = 50, fit_AA = 1, fit_Aa = 1, fit_aa = 1) {
@@ -595,15 +597,16 @@ draw_sims(sim_function = wf_sim_selection, p = 0.01, fit_aa = .5)
 
 Still, some of simulations end in the $A$ allele being lost, as the initial allele frequency is very low. At this point, there's a tug-of-war going on, where genetic drift wants to delete the allele entirely, while selection tries to fix the allele completely.
 
-
 ## Lessons learned
 
 Wright-Fisher is a powerful tool to model and understand how various processes affect the genetic composition of populations. I hope this post helped you understand how population size, mutation, and selection interact with genetic drift to shape allele frequencies in a population.
 
-- Population size matters. Small populations show faster fixation or loss of alleles, as random genetic drift is much stronger here.
+-   Population size matters. Small populations show faster fixation or loss of alleles, as random genetic drift is much stronger here.
 
-- Mutation and selection counteract drift.
+-   Mutation and selection counteract drift.
 
-- Implementation matters for efficiency. Some of the simulation functions implemented here produced the exact same output, but had vastly different run times.
+-   Implementation matters for efficiency. Some of the simulation functions implemented here produced the exact same output, but had vastly different run times.
 
 I think the most powerful part of this whole thing is the inclusion of the shinylive app. Tinkering with tools like this is probably the most effective way of gaining intuition for these kinds of models - that along with effective visualization.
+
+{{< bluesky-comments at://did:plc:pk6346ydqvifmlgimbez4dsx/app.bsky.feed.post/3lfdzaltnt22u >}}
